@@ -1,0 +1,176 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: check if user is authenticated
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // Helper: get staff document for current user in a facility
+    function getStaff(facilityId) {
+      return get(/databases/$(database)/documents/facilities/$(facilityId)/staff/$(request.auth.uid));
+    }
+
+    // Helper: check if user has a specific role in the facility
+    function hasRole(facilityId, roles) {
+      return isAuth() && getStaff(facilityId).data.role in roles;
+    }
+
+    // Helper: check if user is facility admin or super admin
+    function isAdmin(facilityId) {
+      return hasRole(facilityId, ['facility_admin', 'super_admin']);
+    }
+
+    // Helper: check if user is the super admin by email
+    function isSuperAdmin() {
+      return isAuth() && request.auth.token.email == 'ayushrajputt03@gmail.com';
+    }
+
+    // Helper: check if a module is enabled for the facility
+    function moduleEnabled(facilityId, moduleName) {
+      return get(/databases/$(database)/documents/facilities/$(facilityId)/config/facility).data.modules[moduleName] == true;
+    }
+
+    // Super Admin global collection
+    match /superAdmin/{uid} {
+      allow read, write: if isAuth() && request.auth.uid == uid && isSuperAdmin();
+    }
+
+    // Facility index (denormalized for super admin dashboard)
+    match /facilityIndex/{facilityId} {
+      allow read: if isSuperAdmin();
+      allow create: if isAuth();
+      allow update: if isSuperAdmin() || (isAuth() && request.auth.uid == facilityId);
+    }
+
+    // Facility-scoped data
+    match /facilities/{facilityId} {
+
+      // Facility config
+      match /config/{docId} {
+        allow read: if isAuth() && (
+          hasRole(facilityId, ['facility_admin', 'super_admin', 'doctor', 'nurse', 'receptionist', 'pharmacist', 'lab_tech', 'billing_staff'])
+          || isSuperAdmin()
+        );
+        allow write: if isAdmin(facilityId) || isSuperAdmin();
+      }
+
+      // Staff management
+      match /staff/{staffId} {
+        allow read: if isAuth() && (
+          request.auth.uid == staffId
+          || hasRole(facilityId, ['facility_admin', 'super_admin'])
+          || isSuperAdmin()
+        );
+        allow create: if isAdmin(facilityId) || isSuperAdmin()
+          || (isAuth() && request.auth.uid == facilityId);
+        allow update: if isAdmin(facilityId) || isSuperAdmin()
+          || (isAuth() && request.auth.uid == staffId);
+        allow delete: if isAdmin(facilityId) || isSuperAdmin();
+      }
+
+      // Patients
+      match /patients/{patientId} {
+        allow read: if isAuth() && hasRole(facilityId, [
+          'facility_admin', 'super_admin', 'doctor', 'nurse', 'receptionist', 'pharmacist', 'lab_tech', 'billing_staff'
+        ]);
+        allow create, update: if isAuth() && hasRole(facilityId, [
+          'facility_admin', 'super_admin', 'doctor', 'receptionist'
+        ]);
+        allow delete: if isAdmin(facilityId);
+
+        match /visits/{visitId} {
+          allow read: if isAuth() && hasRole(facilityId, [
+            'facility_admin', 'super_admin', 'doctor', 'nurse', 'receptionist', 'billing_staff'
+          ]);
+          allow write: if isAuth() && hasRole(facilityId, [
+            'facility_admin', 'super_admin', 'doctor', 'receptionist'
+          ]);
+        }
+
+        match /documents/{docId} {
+          allow read: if isAuth() && hasRole(facilityId, [
+            'facility_admin', 'super_admin', 'doctor', 'nurse', 'receptionist', 'billing_staff', 'lab_tech'
+          ]);
+          allow write: if isAuth() && hasRole(facilityId, [
+            'facility_admin', 'super_admin', 'doctor', 'lab_tech'
+          ]);
+        }
+      }
+
+      // OPD
+      match /opd/{collection}/{docId} {
+        allow read: if isAuth() && moduleEnabled(facilityId, 'opd') && hasRole(facilityId, [
+          'facility_admin', 'super_admin', 'doctor', 'nurse', 'receptionist', 'billing_staff'
+        ]);
+        allow write: if isAuth() && moduleEnabled(facilityId, 'opd') && hasRole(facilityId, [
+          'facility_admin', 'super_admin', 'doctor', 'receptionist'
+        ]);
+      }
+
+      // IPD
+      match /ipd/{collection}/{docId} {
+        allow read: if isAuth() && moduleEnabled(facilityId, 'ipd') && hasRole(facilityId, [
+          'facility_admin', 'super_admin', 'doctor', 'nurse', 'receptionist', 'billing_staff'
+        ]);
+        allow write: if isAuth() && moduleEnabled(facilityId, 'ipd') && hasRole(facilityId, [
+          'facility_admin', 'super_admin', 'doctor', 'nurse'
+        ]);
+      }
+
+      // IPD admissions with sub-collections
+      match /ipd/admissions/{admissionId}/{subCol}/{subDocId} {
+        allow read: if isAuth() && moduleEnabled(facilityId, 'ipd') && hasRole(facilityId, [
+          'facility_admin', 'super_admin', 'doctor', 'nurse', 'billing_staff'
+        ]);
+        allow write: if isAuth() && moduleEnabled(facilityId, 'ipd') && hasRole(facilityId, [
+          'facility_admin', 'super_admin', 'doctor', 'nurse'
+        ]);
+      }
+
+      // Pharmacy
+      match /pharmacy/{collection}/{docId} {
+        allow read: if isAuth() && moduleEnabled(facilityId, 'pharmacy') && hasRole(facilityId, [
+          'facility_admin', 'super_admin', 'doctor', 'pharmacist', 'billing_staff'
+        ]);
+        allow write: if isAuth() && moduleEnabled(facilityId, 'pharmacy') && hasRole(facilityId, [
+          'facility_admin', 'super_admin', 'pharmacist'
+        ]);
+      }
+
+      // Lab
+      match /lab/{collection}/{docId} {
+        allow read: if isAuth() && moduleEnabled(facilityId, 'lab') && hasRole(facilityId, [
+          'facility_admin', 'super_admin', 'doctor', 'lab_tech', 'billing_staff'
+        ]);
+        allow write: if isAuth() && moduleEnabled(facilityId, 'lab') && hasRole(facilityId, [
+          'facility_admin', 'super_admin', 'lab_tech'
+        ]);
+      }
+
+      // Billing
+      match /billing/{collection}/{docId} {
+        allow read: if isAuth() && hasRole(facilityId, [
+          'facility_admin', 'super_admin', 'doctor', 'receptionist', 'billing_staff', 'pharmacist'
+        ]);
+        allow create: if isAuth() && hasRole(facilityId, [
+          'facility_admin', 'super_admin', 'receptionist', 'billing_staff', 'pharmacist'
+        ]);
+        allow update: if isAuth() && hasRole(facilityId, [
+          'facility_admin', 'super_admin', 'billing_staff'
+        ]);
+        allow delete: if isAdmin(facilityId);
+      }
+
+      // Audit Log — immutable, append-only
+      match /auditLog/{logId} {
+        allow read: if isAdmin(facilityId) || isSuperAdmin();
+        allow create: if isAuth() && hasRole(facilityId, [
+          'facility_admin', 'super_admin', 'doctor', 'nurse', 'receptionist', 'pharmacist', 'lab_tech', 'billing_staff'
+        ]);
+        allow update, delete: if false;
+      }
+    }
+  }
+}

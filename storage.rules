@@ -1,0 +1,22 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /facilities/{facilityId}/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.resource.size < 5 * 1024 * 1024;
+    }
+
+    match /facilities/{facilityId}/patients/{patientId}/photo {
+      allow write: if request.auth != null
+        && request.resource.size < 200 * 1024
+        && request.resource.contentType.matches('image/jpeg');
+    }
+
+    match /facilities/{facilityId}/logo {
+      allow write: if request.auth != null
+        && request.resource.size < 500 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png)');
+    }
+  }
+}
