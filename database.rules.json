@@ -1,0 +1,73 @@
+{
+  "rules": {
+    "facilities": {
+      "$facilityId": {
+        "config": {
+          ".read": "auth != null && (root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists() || root.child('superAdmin').child(auth.uid).exists())",
+          ".write": "auth != null && (root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'facility_admin' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'super_admin')"
+        },
+        "staff": {
+          ".read": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists()",
+          "$staffId": {
+            ".write": "auth != null && (root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'facility_admin' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'super_admin')"
+          }
+        },
+        "patients": {
+          ".read": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists()",
+          "$patientId": {
+            ".write": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists()"
+          }
+        },
+        "opd": {
+          ".read": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists()",
+          "$child": {
+            ".write": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists()"
+          }
+        },
+        "ipd": {
+          ".read": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists()",
+          "$child": {
+            ".write": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists()"
+          }
+        },
+        "pharmacy": {
+          ".read": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists()",
+          "$child": {
+            ".write": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists()"
+          }
+        },
+        "lab": {
+          ".read": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists()",
+          "$child": {
+            ".write": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists()"
+          }
+        },
+        "billing": {
+          ".read": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists()",
+          "$child": {
+            ".write": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists()"
+          }
+        },
+        "auditLog": {
+          ".read": "auth != null && (root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'facility_admin' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'super_admin')",
+          "$logId": {
+            ".write": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists() && !data.exists()",
+            ".validate": "newData.hasChildren(['action', 'module', 'performedBy', 'timestamp'])"
+          }
+        }
+      }
+    },
+    "facilityIndex": {
+      ".read": "auth != null",
+      "$facilityId": {
+        ".write": "auth != null && (auth.uid === $facilityId || root.child('superAdmin').child(auth.uid).exists())"
+      }
+    },
+    "superAdmin": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": false
+      }
+    }
+  }
+}

@@ -1,6 +1,6 @@
 import { createContext, useState, useEffect } from 'react'
 import { onAuthChange } from '@lib/auth'
-import { getDocument, queryDocuments, where } from '@lib/db'
+import { getDocument, queryDocuments } from '@lib/db'
 import { isFirebaseConfigured } from '@lib/firebase'
 
 export const AuthContext = createContext(null)
@@ -96,9 +96,10 @@ export function AuthProvider({ children }) {
 }
 
 async function findStaffProfile(firebaseUser) {
-  const indexDocs = await queryDocuments('facilityIndex', [
-    where('ownerUid', '==', firebaseUser.uid),
-  ])
+  const indexDocs = await queryDocuments('facilityIndex', {
+    orderBy: 'ownerUid',
+    equalTo: firebaseUser.uid,
+  })
 
   if (indexDocs.length > 0) {
     const facilityId = indexDocs[0].id
@@ -115,8 +116,8 @@ async function findStaffProfile(firebaseUser) {
     }
   }
 
-  const staffByEmail = await queryDocuments('facilityIndex', [])
-  for (const facility of staffByEmail) {
+  const allFacilities = await queryDocuments('facilityIndex')
+  for (const facility of allFacilities) {
     const staffDoc = await getDocument(`facilities/${facility.id}/staff/${firebaseUser.uid}`)
     if (staffDoc) {
       return { ...staffDoc, uid: firebaseUser.uid, facilityId: facility.id }

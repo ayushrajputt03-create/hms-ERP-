@@ -31,7 +31,8 @@ export default function RegisterPage() {
       localStorage.setItem('hms-pending-facility-id', 'setup')
       navigate('/setup')
     } catch (err) {
-      setError(readableAuthError(err.code))
+      console.error('Register error:', err, 'code:', err.code, 'message:', err.message)
+      setError(err.code ? readableAuthError(err.code) : (err.message || 'An unexpected error occurred.'))
     } finally {
       setLoading(false)
     }

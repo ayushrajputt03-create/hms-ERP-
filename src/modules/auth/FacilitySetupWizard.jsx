@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@hooks/useAuth'
-import { setDocument, addDocument } from '@lib/db'
-import { serverTimestamp } from 'firebase/firestore'
+import { setDocument } from '@lib/db'
 import {
   FACILITY_TYPES, FACILITY_TYPE_LABELS, FACILITY_TYPE_MODULES, INDIAN_STATES,
 } from '@lib/constants'
@@ -54,6 +53,7 @@ export default function FacilitySetupWizard() {
     setError('')
     try {
       const facilityId = user.uid
+      const now = Date.now()
       const facilityConfig = {
         facilityName: form.facilityName,
         facilityType: form.facilityType,
@@ -75,10 +75,10 @@ export default function FacilitySetupWizard() {
         },
         uhidPrefix: 'PT',
         invoicePrefix: 'INV',
-        createdAt: serverTimestamp(),
+        createdAt: now,
       }
 
-      await setDocument(`facilities/${facilityId}/config/facility`, facilityConfig)
+      await setDocument(`facilities/${facilityId}/config`, facilityConfig)
 
       await setDocument(`facilities/${facilityId}/staff/${user.uid}`, {
         name: user.displayName || form.facilityName,
@@ -87,7 +87,7 @@ export default function FacilitySetupWizard() {
         role: 'facility_admin',
         department: 'Administration',
         status: 'active',
-        createdAt: serverTimestamp(),
+        createdAt: now,
       })
 
       await setDocument(`facilityIndex/${facilityId}`, {
@@ -101,7 +101,7 @@ export default function FacilitySetupWizard() {
         ownerName: user.displayName || form.facilityName,
         status: 'active',
         subscription: facilityConfig.subscription,
-        createdAt: serverTimestamp(),
+        createdAt: now,
       })
 
       localStorage.removeItem('hms-pending-facility-id')

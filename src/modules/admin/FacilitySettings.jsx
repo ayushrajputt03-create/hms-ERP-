@@ -39,7 +39,7 @@ export default function FacilitySettings() {
   const handleSave = async () => {
     setSaving(true)
     try {
-      await setDocument(`facilities/${facilityId}/config/facility`, form, {
+      await setDocument(`facilities/${facilityId}/config`, form, {
         user: { uid: user.uid, name: staffProfile.name, role: staffProfile.role },
         facilityId,
         audit: {

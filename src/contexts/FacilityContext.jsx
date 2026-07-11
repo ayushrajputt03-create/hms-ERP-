@@ -49,7 +49,7 @@ export function FacilityProvider({ facilityId, children }) {
     }
 
     const unsubscribe = subscribeToDocument(
-      `facilities/${facilityId}/config/facility`,
+      `facilities/${facilityId}/config`,
       (data) => {
         setFacilityConfig(data)
         setLoading(false)

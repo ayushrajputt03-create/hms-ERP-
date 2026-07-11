@@ -3,9 +3,9 @@
 ## Project Identity
 
 - Project: HMS ERP — Hospital & Clinic Management System
-- GitHub remote: TBD
+- GitHub remote: https://github.com/ayushrajputt03-create/hms-ERP-.git
 - App type: React 18 + Vite SPA
-- Backend/services: Firebase Auth, Firestore, Firebase Storage
+- Backend/services: Firebase Auth, Firebase Realtime Database, Firebase Storage
 - Deployment: Vercel
 - Parent company: NXT Eleveta Media
 
@@ -31,8 +31,8 @@ Never commit `.env`, service account JSON, or API keys.
 
 Modular structure — each module in `src/modules/{name}/`. No file should exceed 500 lines.
 
-- `src/lib/` — Firebase init, Firestore helpers, RBAC, audit, utilities
-- `src/hooks/` — React hooks (useAuth, useFacility, usePermission, Firestore hooks)
+- `src/lib/` — Firebase init, RTDB helpers, RBAC, audit, utilities
+- `src/hooks/` — React hooks (useAuth, useFacility, usePermission, Realtime DB hooks)
 - `src/contexts/` — AuthContext, FacilityContext
 - `src/components/` — Shared UI (AppShell, Sidebar, Header, Modal, DataTable, etc.)
 - `src/modules/auth/` — Login, Register, Facility Setup Wizard

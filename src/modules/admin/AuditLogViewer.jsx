@@ -1,6 +1,5 @@
 import { useFacility } from '@hooks/useFacility'
 import { useFirestoreCollection } from '@hooks/useFirestoreCollection'
-import { orderBy } from '@lib/db'
 import { formatDate } from '@lib/utils'
 import { ROLE_LABELS } from '@lib/constants'
 import DataTable from '@components/DataTable'
@@ -9,16 +8,17 @@ import { ScrollText } from 'lucide-react'
 export default function AuditLogViewer() {
   const { facilityId } = useFacility()
 
-  const { data: logs, loading } = useFirestoreCollection(
-    facilityId ? `facilities/${facilityId}/auditLog` : null,
-    [orderBy('timestamp', 'desc')]
+  const { data: rawLogs, loading } = useFirestoreCollection(
+    facilityId ? `facilities/${facilityId}/auditLog` : null
   )
+
+  const logs = [...rawLogs].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
 
   const columns = [
     {
       header: 'Time',
       accessor: 'timestamp',
-      cell: (r) => formatDate(r.timestamp?.toDate?.() || r.timestamp, 'datetime'),
+      cell: (r) => formatDate(r.timestamp, 'datetime'),
       width: '160px',
     },
     { header: 'Action', accessor: 'action' },

@@ -1,4 +1,4 @@
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
+import { ref, push, set } from 'firebase/database'
 import { db } from './firebase'
 
 export async function writeAuditLog(facilityId, {
@@ -26,14 +26,12 @@ export async function writeAuditLog(facilityId, {
       name: performedBy.name || 'Unknown',
       role: performedBy.role || 'unknown',
     },
-    timestamp: serverTimestamp(),
+    timestamp: Date.now(),
   }
 
   try {
-    await addDoc(
-      collection(db, 'facilities', facilityId, 'auditLog'),
-      logEntry
-    )
+    const logRef = push(ref(db, `facilities/${facilityId}/auditLog`))
+    await set(logRef, logEntry)
   } catch (err) {
     console.error('Audit log write failed:', err)
   }

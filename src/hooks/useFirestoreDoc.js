@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { subscribeToDocument } from '@lib/db'
 
-export function useFirestoreDoc(path) {
+export function useRealtimeDoc(path) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -30,3 +30,5 @@ export function useFirestoreDoc(path) {
 
   return { data, loading, error }
 }
+
+export { useRealtimeDoc as useFirestoreDoc }

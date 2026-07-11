@@ -1,18 +1,13 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { subscribeToCollection } from '@lib/db'
 
-export function useFirestoreCollection(collectionPath, constraints = []) {
+export function useRealtimeList(path) {
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const constraintsKey = useRef(JSON.stringify(constraints))
 
   useEffect(() => {
-    constraintsKey.current = JSON.stringify(constraints)
-  }, [constraints])
-
-  useEffect(() => {
-    if (!collectionPath) {
+    if (!path) {
       setData([])
       setLoading(false)
       return
@@ -22,16 +17,18 @@ export function useFirestoreCollection(collectionPath, constraints = []) {
     setError(null)
 
     try {
-      const unsubscribe = subscribeToCollection(collectionPath, (docs) => {
+      const unsubscribe = subscribeToCollection(path, (docs) => {
         setData(docs)
         setLoading(false)
-      }, constraints)
+      })
       return unsubscribe
     } catch (err) {
       setError(err)
       setLoading(false)
     }
-  }, [collectionPath, constraintsKey.current])
+  }, [path])
 
   return { data, loading, error }
 }
+
+export { useRealtimeList as useFirestoreCollection }

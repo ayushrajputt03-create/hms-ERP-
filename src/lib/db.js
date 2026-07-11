@@ -1,121 +1,128 @@
 import {
-  doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc,
-  collection, query, where, orderBy, limit, getDocs,
-  onSnapshot, serverTimestamp, runTransaction, writeBatch,
-} from 'firebase/firestore'
-import { db, isFirebaseConfigured } from './firebase'
+  ref, get, set, update, remove, push,
+  onValue, query, orderByChild, equalTo,
+} from 'firebase/database'
+import { db } from './firebase'
 import { writeAuditLog } from './audit'
 
 export async function getDocument(path) {
   if (!db) return null
-  const snap = await getDoc(doc(db, ...path.split('/')))
+  const snap = await get(ref(db, path))
   if (!snap.exists()) return null
-  return { id: snap.id, ...snap.data() }
+  return { id: snap.key, ...snap.val() }
 }
 
 export async function setDocument(path, data, { user, facilityId, audit } = {}) {
-  const ref = doc(db, ...path.split('/'))
-  const payload = { ...data, updatedAt: serverTimestamp() }
+  const r = ref(db, path)
+  const payload = { ...data, updatedAt: Date.now() }
 
   if (audit && user && facilityId) {
-    const existing = await getDoc(ref)
-    await setDoc(ref, payload, { merge: true })
+    const existing = await get(r)
+    await set(r, payload)
     await writeAuditLog(facilityId, {
       ...audit,
-      before: existing.exists() ? existing.data() : null,
+      before: existing.exists() ? existing.val() : null,
       after: payload,
       performedBy: user,
     })
   } else {
-    await setDoc(ref, payload, { merge: true })
+    await set(r, payload)
   }
 }
 
 export async function addDocument(collectionPath, data, { user, facilityId, audit } = {}) {
-  const colRef = collection(db, ...collectionPath.split('/'))
-  const payload = { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }
-  const docRef = await addDoc(colRef, payload)
+  const listRef = ref(db, collectionPath)
+  const newRef = push(listRef)
+  const payload = { ...data, createdAt: Date.now(), updatedAt: Date.now() }
+  await set(newRef, payload)
 
   if (audit && user && facilityId) {
     await writeAuditLog(facilityId, {
       ...audit,
-      entityId: docRef.id,
+      entityId: newRef.key,
       after: payload,
       performedBy: user,
     })
   }
 
-  return docRef.id
+  return newRef.key
 }
 
 export async function updateDocument(path, data, { user, facilityId, audit } = {}) {
-  const ref = doc(db, ...path.split('/'))
-  const payload = { ...data, updatedAt: serverTimestamp() }
+  const r = ref(db, path)
+  const payload = { ...data, updatedAt: Date.now() }
 
   if (audit && user && facilityId) {
-    const existing = await getDoc(ref)
-    await updateDoc(ref, payload)
+    const existing = await get(r)
+    await update(r, payload)
     await writeAuditLog(facilityId, {
       ...audit,
-      before: existing.exists() ? existing.data() : null,
+      before: existing.exists() ? existing.val() : null,
       after: payload,
       performedBy: user,
     })
   } else {
-    await updateDoc(ref, payload)
+    await update(r, payload)
   }
 }
 
 export async function deleteDocument(path, { user, facilityId, audit } = {}) {
-  const ref = doc(db, ...path.split('/'))
+  const r = ref(db, path)
 
   if (audit && user && facilityId) {
-    const existing = await getDoc(ref)
-    await deleteDoc(ref)
+    const existing = await get(r)
+    await remove(r)
     await writeAuditLog(facilityId, {
       ...audit,
-      before: existing.exists() ? existing.data() : null,
+      before: existing.exists() ? existing.val() : null,
       performedBy: user,
     })
   } else {
-    await deleteDoc(ref)
+    await remove(r)
   }
 }
 
-export async function queryDocuments(collectionPath, constraints = []) {
+export async function queryDocuments(path, filters = {}) {
   if (!db) return []
-  const colRef = collection(db, ...collectionPath.split('/'))
-  const q = constraints.length > 0 ? query(colRef, ...constraints) : query(colRef)
-  const snap = await getDocs(q)
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+  let q
+  if (filters.orderBy && filters.equalTo !== undefined) {
+    q = query(ref(db, path), orderByChild(filters.orderBy), equalTo(filters.equalTo))
+  } else {
+    q = ref(db, path)
+  }
+  const snap = await get(q)
+  if (!snap.exists()) return []
+  const val = snap.val()
+  return Object.entries(val).map(([key, v]) => ({ id: key, ...v }))
 }
 
 export function subscribeToDocument(path, callback) {
   if (!db) { callback(null); return () => {} }
-  return onSnapshot(doc(db, ...path.split('/')), (snap) => {
-    callback(snap.exists() ? { id: snap.id, ...snap.data() } : null)
+  const r = ref(db, path)
+  const unsub = onValue(r, (snap) => {
+    callback(snap.exists() ? { id: snap.key, ...snap.val() } : null)
   })
+  return unsub
 }
 
-export function subscribeToCollection(collectionPath, callback, constraints = []) {
+export function subscribeToCollection(path, callback) {
   if (!db) { callback([]); return () => {} }
-  const colRef = collection(db, ...collectionPath.split('/'))
-  const q = constraints.length > 0 ? query(colRef, ...constraints) : query(colRef)
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+  const r = ref(db, path)
+  const unsub = onValue(r, (snap) => {
+    if (!snap.exists()) { callback([]); return }
+    const val = snap.val()
+    callback(Object.entries(val).map(([key, v]) => ({ id: key, ...v })))
   })
+  return unsub
 }
 
 export async function incrementCounter(counterPath, field = 'value') {
-  const ref = doc(db, ...counterPath.split('/'))
-  let newValue
-  await runTransaction(db, async (transaction) => {
-    const snap = await transaction.get(ref)
-    const current = snap.exists() ? (snap.data()[field] || 0) : 0
-    newValue = current + 1
-    transaction.set(ref, { [field]: newValue }, { merge: true })
-  })
+  const r = ref(db, counterPath)
+  const snap = await get(r)
+  const current = snap.exists() ? (snap.val()[field] || 0) : 0
+  const newValue = current + 1
+  await update(r, { [field]: newValue })
   return newValue
 }
 
-export { where, orderBy, limit, serverTimestamp, writeBatch, runTransaction, db }
+export { db }
