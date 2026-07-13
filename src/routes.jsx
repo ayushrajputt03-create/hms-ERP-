@@ -18,6 +18,14 @@ const StaffListPage = lazy(() => import('@modules/staff/StaffListPage'))
 const FacilitySettings = lazy(() => import('@modules/admin/FacilitySettings'))
 const AuditLogViewer = lazy(() => import('@modules/admin/AuditLogViewer'))
 
+const PatientListPage = lazy(() => import('@modules/patients/PatientListPage'))
+const PatientForm = lazy(() => import('@modules/patients/PatientForm'))
+const PatientProfile = lazy(() => import('@modules/patients/PatientProfile'))
+
+const AppointmentCalendar = lazy(() => import('@modules/opd/AppointmentCalendar'))
+const QueueScreen = lazy(() => import('@modules/opd/QueueScreen'))
+const ConsultationScreen = lazy(() => import('@modules/opd/ConsultationScreen'))
+
 function Loader() {
   return <LoadingScreen message="Loading module..." />
 }
@@ -41,22 +49,18 @@ export default function AppRoutes() {
   return (
     <Suspense fallback={<Loader />}>
       <Routes>
-        {/* Public auth routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
-        {/* Super Admin — independent app */}
         <Route path="/super-admin/*" element={<SuperAdminApp />} />
 
-        {/* Facility setup */}
         <Route path="/setup" element={
           <ProtectedRoute>
             <FacilitySetupWizard />
           </ProtectedRoute>
         } />
 
-        {/* Main facility app */}
         <Route element={
           <ProtectedRoute>
             <FacilityRoutes />
@@ -64,60 +68,59 @@ export default function AppRoutes() {
         }>
           <Route index element={<DashboardPage />} />
 
+          {/* Patients module */}
+          <Route path="patients" element={
+            <ModuleGate module="patients"><PatientListPage /></ModuleGate>
+          } />
+          <Route path="patients/new" element={
+            <ModuleGate module="patients"><PatientForm /></ModuleGate>
+          } />
+          <Route path="patients/:patientId" element={
+            <ModuleGate module="patients"><PatientProfile /></ModuleGate>
+          } />
+          <Route path="patients/:patientId/edit" element={
+            <ModuleGate module="patients"><PatientForm /></ModuleGate>
+          } />
+
+          {/* OPD module */}
+          <Route path="opd" element={
+            <ModuleGate module="opd"><AppointmentCalendar /></ModuleGate>
+          } />
+          <Route path="opd/queue" element={
+            <ModuleGate module="opd"><QueueScreen /></ModuleGate>
+          } />
+          <Route path="opd/consultation/:visitId" element={
+            <ModuleGate module="opd"><ConsultationScreen /></ModuleGate>
+          } />
+
           {/* Staff module */}
           <Route path="staff" element={
-            <ModuleGate module="staff">
-              <StaffListPage />
-            </ModuleGate>
+            <ModuleGate module="staff"><StaffListPage /></ModuleGate>
           } />
 
           {/* Admin module */}
           <Route path="admin" element={
-            <ModuleGate module="admin">
-              <FacilitySettings />
-            </ModuleGate>
+            <ModuleGate module="admin"><FacilitySettings /></ModuleGate>
           } />
           <Route path="admin/audit" element={
-            <ModuleGate module="admin">
-              <AuditLogViewer />
-            </ModuleGate>
+            <ModuleGate module="admin"><AuditLogViewer /></ModuleGate>
           } />
 
           {/* Placeholder routes for future modules */}
-          <Route path="patients/*" element={
-            <ModuleGate module="patients">
-              <PlaceholderModule name="Patients" />
-            </ModuleGate>
-          } />
-          <Route path="opd/*" element={
-            <ModuleGate module="opd">
-              <PlaceholderModule name="OPD" />
-            </ModuleGate>
-          } />
           <Route path="ipd/*" element={
-            <ModuleGate module="ipd">
-              <PlaceholderModule name="IPD" />
-            </ModuleGate>
+            <ModuleGate module="ipd"><PlaceholderModule name="IPD" /></ModuleGate>
           } />
           <Route path="pharmacy/*" element={
-            <ModuleGate module="pharmacy">
-              <PlaceholderModule name="Pharmacy" />
-            </ModuleGate>
+            <ModuleGate module="pharmacy"><PlaceholderModule name="Pharmacy" /></ModuleGate>
           } />
           <Route path="lab/*" element={
-            <ModuleGate module="lab">
-              <PlaceholderModule name="Lab / Diagnostics" />
-            </ModuleGate>
+            <ModuleGate module="lab"><PlaceholderModule name="Lab / Diagnostics" /></ModuleGate>
           } />
           <Route path="billing/*" element={
-            <ModuleGate module="billing">
-              <PlaceholderModule name="Billing" />
-            </ModuleGate>
+            <ModuleGate module="billing"><PlaceholderModule name="Billing" /></ModuleGate>
           } />
           <Route path="reports/*" element={
-            <ModuleGate module="reports">
-              <PlaceholderModule name="Reports" />
-            </ModuleGate>
+            <ModuleGate module="reports"><PlaceholderModule name="Reports" /></ModuleGate>
           } />
 
           <Route path="*" element={<Navigate to="/" replace />} />

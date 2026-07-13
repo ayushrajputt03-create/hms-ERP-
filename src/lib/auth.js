@@ -60,6 +60,7 @@ export function readableAuthError(code) {
     'auth/too-many-requests': 'Too many attempts. Please try again later.',
     'auth/popup-closed-by-user': 'Sign-in popup was closed.',
     'auth/invalid-credential': 'Invalid credentials. Please check and try again.',
+    'auth/network-request-failed': 'Network error. Please check your internet connection and try again.',
   }
   return map[code] || 'An unexpected error occurred. Please try again.'
 }

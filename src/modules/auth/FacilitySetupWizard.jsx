@@ -78,8 +78,6 @@ export default function FacilitySetupWizard() {
         createdAt: now,
       }
 
-      await setDocument(`facilities/${facilityId}/config`, facilityConfig)
-
       await setDocument(`facilities/${facilityId}/staff/${user.uid}`, {
         name: user.displayName || form.facilityName,
         email: user.email,
@@ -89,6 +87,8 @@ export default function FacilitySetupWizard() {
         status: 'active',
         createdAt: now,
       })
+
+      await setDocument(`facilities/${facilityId}/config`, facilityConfig)
 
       await setDocument(`facilityIndex/${facilityId}`, {
         facilityName: form.facilityName,

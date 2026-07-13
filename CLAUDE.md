@@ -49,21 +49,25 @@ Modular structure — each module in `src/modules/{name}/`. No file should excee
 - `src/modules/reports/` — Analytics dashboards, exports
 - `src/routes.jsx` — React Router v6 with lazy loading
 
-## Firestore Data Model
+## RTDB Data Model
 
 ```
 facilities/{facilityId}/
-  config/facility
-  staff/{staffId}
-  patients/{patientId}/visits/{visitId}
-  opd/appointments/{id}, queue/{id}, consultations/{id}
-  ipd/wards/{wardId}, admissions/{id}/dailyNotes/{id}
-  pharmacy/medicines/{id}, stockMovements/{id}
-  lab/tests/{id}, orders/{id}, samples/{id}
-  billing/invoices/{id}, payments/{id}, refunds/{id}
-  auditLog/{logId}
+  config                     — facility profile, modules, subscription
+  staff/{staffId}            — role, department, schedule
+  patients/{patientId}       — demographics, UHID, allergies, conditions
+  opdVisits/{visitId}        — appointment/consultation, vitals, prescription
+  doctorSchedules/{id}       — per-doctor availability
+  prescriptionTemplates/{id} — saved Rx templates per doctor
+  tariffMaster/{id}          — consultation/procedure charges
+  counters/{counterId}       — auto-increment for UHID, tokens
+  ipd/{child}
+  pharmacy/{child}
+  lab/{child}
+  billing/{child}            — line items from OPD/IPD/pharmacy/lab
+  auditLog/{logId}           — immutable, create-only
+facilityIndex/{facilityId}   — denormalized for cross-tenant queries
 superAdmin/{uid}
-facilityIndex/{facilityId}
 ```
 
 ## RBAC
