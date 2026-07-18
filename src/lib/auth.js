@@ -1,66 +1,84 @@
-import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signInWithPopup,
-  GoogleAuthProvider,
-  sendPasswordResetEmail,
-  signOut as firebaseSignOut,
-  onAuthStateChanged,
-  updateProfile,
-} from 'firebase/auth'
-import { auth, isFirebaseConfigured } from './firebase'
+import { supabase } from './supabase'
 
-const googleProvider = isFirebaseConfigured ? new GoogleAuthProvider() : null
+// Normalize a Supabase user into the shape the app already expects (uid/email/displayName).
+function mapUser(u) {
+  if (!u) return null
+  return {
+    uid: u.id,
+    email: u.email,
+    displayName: u.user_metadata?.name || u.user_metadata?.full_name || null,
+  }
+}
 
 export function onAuthChange(callback) {
-  if (!isFirebaseConfigured || !auth) {
-    callback(null)
-    return () => {}
-  }
-  return onAuthStateChanged(auth, callback)
+  if (!supabase) { callback(null); return () => {} }
+
+  supabase.auth.getSession().then(({ data }) => {
+    callback(mapUser(data.session?.user))
+  })
+
+  const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    callback(mapUser(session?.user))
+  })
+
+  return () => sub.subscription.unsubscribe()
 }
 
 export async function signInWithEmail(email, password) {
-  if (!auth) throw new Error('Firebase not configured')
-  return signInWithEmailAndPassword(auth, email, password)
+  if (!supabase) throw new Error('Supabase not configured')
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+  if (error) throw error
+  return { user: mapUser(data.user) }
 }
 
 export async function signUpWithEmail(email, password, displayName) {
-  if (!auth) throw new Error('Firebase not configured')
-  const credential = await createUserWithEmailAndPassword(auth, email, password)
-  if (displayName) {
-    await updateProfile(credential.user, { displayName })
+  if (!supabase) throw new Error('Supabase not configured')
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { data: { name: displayName } },
+  })
+  if (error) throw error
+  if (!data.session) {
+    // Email confirmation is enabled on the project; no session yet.
+    const e = new Error('Please confirm your email, then sign in.')
+    e.code = 'auth/email-confirmation-required'
+    throw e
   }
-  return credential
+  return { user: mapUser(data.user) }
 }
 
 export async function signInWithGoogle() {
-  if (!auth || !googleProvider) throw new Error('Firebase not configured')
-  return signInWithPopup(auth, googleProvider)
+  if (!supabase) throw new Error('Supabase not configured')
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.origin },
+  })
+  if (error) throw error
+  return data
 }
 
 export async function resetPassword(email) {
-  if (!auth) throw new Error('Firebase not configured')
-  return sendPasswordResetEmail(auth, email)
+  if (!supabase) throw new Error('Supabase not configured')
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin + '/login',
+  })
+  if (error) throw error
 }
 
 export async function signOut() {
-  if (!auth) return
-  return firebaseSignOut(auth)
+  if (!supabase) return
+  await supabase.auth.signOut()
 }
 
-export function readableAuthError(code) {
+export function readableAuthError(codeOrMessage) {
   const map = {
-    'auth/invalid-email': 'Invalid email address.',
-    'auth/user-disabled': 'This account has been disabled.',
-    'auth/user-not-found': 'No account found with this email.',
-    'auth/wrong-password': 'Incorrect password.',
-    'auth/email-already-in-use': 'An account already exists with this email.',
-    'auth/weak-password': 'Password must be at least 6 characters.',
-    'auth/too-many-requests': 'Too many attempts. Please try again later.',
-    'auth/popup-closed-by-user': 'Sign-in popup was closed.',
-    'auth/invalid-credential': 'Invalid credentials. Please check and try again.',
-    'auth/network-request-failed': 'Network error. Please check your internet connection and try again.',
+    'auth/email-confirmation-required': 'Please confirm your email, then sign in.',
+    'Invalid login credentials': 'Invalid email or password.',
+    'User already registered': 'An account already exists with this email.',
+    'Email not confirmed': 'Please confirm your email before signing in.',
+    'Password should be at least 6 characters': 'Password must be at least 6 characters.',
+    'Unable to validate email address: invalid format': 'Invalid email address.',
   }
-  return map[code] || 'An unexpected error occurred. Please try again.'
+  return map[codeOrMessage] || codeOrMessage || 'An unexpected error occurred. Please try again.'
 }

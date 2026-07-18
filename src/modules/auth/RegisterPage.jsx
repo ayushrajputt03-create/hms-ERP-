@@ -32,7 +32,7 @@ export default function RegisterPage() {
       navigate('/setup')
     } catch (err) {
       console.error('Register error:', err, 'code:', err.code, 'message:', err.message)
-      setError(err.code ? readableAuthError(err.code) : (err.message || 'An unexpected error occurred.'))
+      setError(readableAuthError(err.code || err.message))
     } finally {
       setLoading(false)
     }

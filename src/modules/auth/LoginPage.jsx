@@ -19,7 +19,7 @@ export default function LoginPage() {
       await signInWithEmail(email, password)
       navigate('/')
     } catch (err) {
-      setError(readableAuthError(err.code))
+      setError(readableAuthError(err.code || err.message))
     } finally {
       setLoading(false)
     }
@@ -32,7 +32,7 @@ export default function LoginPage() {
       await signInWithGoogle()
       navigate('/')
     } catch (err) {
-      setError(readableAuthError(err.code))
+      setError(readableAuthError(err.code || err.message))
     } finally {
       setLoading(false)
     }

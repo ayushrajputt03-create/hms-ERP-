@@ -1,6 +1,6 @@
 import { createContext, useState, useEffect } from 'react'
 import { subscribeToDocument } from '@lib/db'
-import { isFirebaseConfigured } from '@lib/firebase'
+import { isSupabaseConfigured } from '@lib/supabase'
 
 export const FacilityContext = createContext(null)
 
@@ -37,7 +37,7 @@ export function FacilityProvider({ facilityId, children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!isFirebaseConfigured) {
+    if (!isSupabaseConfigured) {
       setFacilityConfig(DEMO_CONFIG)
       setLoading(false)
       return

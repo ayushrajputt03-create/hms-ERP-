@@ -1,38 +1,43 @@
-import { ref, push, set } from 'firebase/database'
-import { db } from './firebase'
+import { supabase } from './supabase'
 
+// Append-only audit trail. One row per log entry under the facility's auditLog collection.
 export async function writeAuditLog(facilityId, {
   action,
   module,
-  entityType,
-  entityId,
-  description,
+  entityType = null,
+  entityId = null,
+  description = null,
   before = null,
   after = null,
   performedBy,
 }) {
-  if (!db || !facilityId) return
+  if (!supabase || !facilityId) return
 
+  // performedBy may be a string (name/email) or a { uid, name, role } object.
+  const actor = typeof performedBy === 'string'
+    ? { uid: null, name: performedBy, role: 'unknown' }
+    : {
+        uid: performedBy?.uid || null,
+        name: performedBy?.name || 'Unknown',
+        role: performedBy?.role || 'unknown',
+      }
+
+  const id = 'log' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
+  const path = `facilities/${facilityId}/auditLog/${id}`
   const logEntry = {
-    action,
-    module,
-    entityType,
-    entityId: entityId || null,
-    description,
-    before,
-    after,
-    performedBy: {
-      uid: performedBy.uid,
-      name: performedBy.name || 'Unknown',
-      role: performedBy.role || 'unknown',
-    },
-    timestamp: Date.now(),
+    action, module, entityType, entityId, description,
+    before, after, performedBy: actor, timestamp: Date.now(),
   }
 
   try {
-    const logRef = push(ref(db, `facilities/${facilityId}/auditLog`))
-    await set(logRef, logEntry)
+    await supabase.from('documents').insert({
+      path,
+      collection: `facilities/${facilityId}/auditLog`,
+      facility_id: facilityId,
+      data: logEntry,
+    })
   } catch (err) {
+    // Never let an audit failure break the primary write.
     console.error('Audit log write failed:', err)
   }
 }

@@ -5,9 +5,28 @@
 - Project: HMS ERP — Hospital & Clinic Management System
 - GitHub remote: https://github.com/ayushrajputt03-create/hms-ERP-.git
 - App type: React 18 + Vite SPA
-- Backend/services: Firebase Auth, Firebase Realtime Database, Firebase Storage
+- Backend/services: Supabase (Postgres + Supabase Auth + Realtime). Project ref: `namttfhimfcxkyihepui` (region ap-south-1)
 - Deployment: Vercel
 - Parent company: NXT Eleveta Media
+
+## Data Layer (Supabase)
+
+Migrated off Firebase. Data lives in a single Postgres table `public.documents` that
+emulates the old Firebase RTDB tree so module code keeps its path-based API:
+
+- Each record = one row keyed by full path, e.g. `facilities/{fid}/patients/{pid}`.
+- Columns: `path` (PK), `collection` (parent path), `facility_id`, `data` (jsonb), timestamps.
+- `src/lib/db.js` implements the path helpers (get/set/add/update/delete/query/subscribe*)
+  on this table + Supabase Realtime. Nested sub-path writes (e.g. `.../wards/{w}/beds/{b}`)
+  merge into the nearest ancestor record's JSONB.
+- Atomic ops are Postgres RPCs: `increment_counter(path, field)` and `adjust_value(path, delta)`.
+- Tenant isolation is enforced by RLS (`is_facility_member`): a user only sees rows whose
+  `facility_id` is a facility they are staff of (or own). `facilityIndex` is world-readable to
+  authenticated users. Role-level checks remain in `src/lib/rbac.js` (UI) as before.
+- Auth: `src/lib/auth.js` wraps Supabase Auth (email/password + Google). Set-up flow expects
+  "Confirm email" to be OFF in the Supabase dashboard for instant register -> setup -> dashboard.
+
+Data migration from a Firebase export: `scripts/migrate-firebase-to-supabase.mjs`.
 
 ## Commands
 
@@ -22,10 +41,9 @@ npm.cmd run preview
 
 Create `.env.local` from `.env.example`.
 
-Frontend (VITE_*): Firebase config, app env, super admin email.
-Server (api/): Firebase service account, Resend API key, cron secret.
+Frontend (VITE_*): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (publishable key), `VITE_APP_ENV`, `VITE_SUPER_ADMIN_EMAIL`.
 
-Never commit `.env`, service account JSON, or API keys.
+Never commit `.env`, the service_role key, or API keys.
 
 ## Architecture
 

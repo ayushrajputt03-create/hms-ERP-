@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { auth } from '@lib/firebase'
 import { onAuthChange, signInWithEmail, signOut, readableAuthError } from '@lib/auth'
 import { queryDocuments } from '@lib/db'
 import { formatDate, formatINR } from '@lib/utils'
@@ -57,7 +56,7 @@ export default function SuperAdminApp() {
         setLoginError('Not authorized as super admin.')
       }
     } catch (err) {
-      setLoginError(readableAuthError(err.code))
+      setLoginError(readableAuthError(err.code || err.message))
     } finally {
       setLoginLoading(false)
     }

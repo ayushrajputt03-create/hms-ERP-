@@ -1,7 +1,7 @@
 import { createContext, useState, useEffect } from 'react'
 import { onAuthChange } from '@lib/auth'
 import { getDocument, queryDocuments } from '@lib/db'
-import { isFirebaseConfigured } from '@lib/firebase'
+import { isSupabaseConfigured } from '@lib/supabase'
 
 export const AuthContext = createContext(null)
 
@@ -26,7 +26,7 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!isFirebaseConfigured) {
+    if (!isSupabaseConfigured) {
       setUser(DEMO_USER)
       setStaffProfile(DEMO_STAFF)
       setLoading(false)

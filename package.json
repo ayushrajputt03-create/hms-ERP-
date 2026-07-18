@@ -10,9 +10,9 @@
     "check": "npm run build"
   },
   "dependencies": {
-    "firebase": "^12.0.0",
-    "jspdf": "^4.2.1",
+    "@supabase/supabase-js": "^2.45.0",
     "exceljs": "^4.4.0",
+    "jspdf": "^4.2.1",
     "lucide-react": "^0.468.0",
     "qrcode": "^1.5.4",
     "react": "^18.2.0",

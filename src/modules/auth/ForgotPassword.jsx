@@ -17,7 +17,7 @@ export default function ForgotPassword() {
       await resetPassword(email)
       setSent(true)
     } catch (err) {
-      setError(readableAuthError(err.code))
+      setError(readableAuthError(err.code || err.message))
     } finally {
       setLoading(false)
     }
