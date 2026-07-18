@@ -28,5 +28,6 @@ export function usePermission() {
     [role]
   )
 
-  return { canDo, visibleModules, actions, role }
+  // `can` is the primary API used across modules; `canDo` kept as an alias.
+  return { can: canDo, canDo, visibleModules, actions, role }
 }

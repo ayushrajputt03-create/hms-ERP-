@@ -21,7 +21,11 @@ export default function PatientListPage() {
     const unsub = subscribeToCollection(
       `facilities/${facilityId}/patients`,
       (data) => {
-        setPatients(data.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)))
+        setPatients(
+          data
+            .filter((p) => p.status !== 'archived')
+            .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+        )
         setLoading(false)
       }
     )

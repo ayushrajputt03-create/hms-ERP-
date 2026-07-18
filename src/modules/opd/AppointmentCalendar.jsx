@@ -123,6 +123,8 @@ export default function AppointmentCalendar() {
         />
       )}
 
+      <UpcomingFollowUps visits={visits} onBook={(v) => setBookModal({ doctorId: v.doctorId, date: v.followUpDate })} />
+
       {bookModal && (
         <QuickBookModal
           isOpen={!!bookModal}
@@ -131,6 +133,33 @@ export default function AppointmentCalendar() {
           doctors={staff}
         />
       )}
+    </div>
+  )
+}
+
+function UpcomingFollowUps({ visits, onBook }) {
+  const today = toISODate(new Date())
+  const followUps = visits
+    .filter((v) => v.followUpDate && v.followUpDate >= today)
+    .sort((a, b) => a.followUpDate.localeCompare(b.followUpDate))
+    .slice(0, 15)
+
+  if (followUps.length === 0) return null
+
+  return (
+    <div className="followups-section">
+      <h3>Upcoming Follow-ups ({followUps.length})</h3>
+      <div className="followups-list">
+        {followUps.map((v) => (
+          <div key={v.id} className="followup-item">
+            <span className="followup-date">{formatDate(new Date(v.followUpDate + 'T00:00:00'))}</span>
+            <span className="followup-name">{v.patientName}</span>
+            <span className="font-mono">{v.patientUhid}</span>
+            <span className="text-muted">Dr. {v.doctorName}</span>
+            <button className="btn btn-outline btn-sm" onClick={() => onBook(v)}>Book</button>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

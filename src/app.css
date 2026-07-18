@@ -1815,9 +1815,224 @@ a:hover { text-decoration: underline; }
   .calendar-controls { flex-wrap: wrap; }
 }
 
+/* ======================== BMI / Follow-ups ======================== */
+.bmi-display {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-hover);
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+}
+
+.profile-header-actions { display: flex; gap: 0.5rem; }
+
+.followups-section { margin-top: 1.5rem; }
+.followups-section h3 { font-size: 1rem; margin-bottom: 0.75rem; }
+.followups-list { display: flex; flex-direction: column; gap: 0.4rem; }
+
+.followup-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+}
+
+.followup-date { font-weight: 600; color: var(--primary); white-space: nowrap; }
+.followup-name { font-weight: 600; }
+.followup-item .btn { margin-left: auto; }
+
+/* ======================== Module toolbar (alerts + action) ======================== */
+.pharmacy-alerts {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+/* ======================== Pharmacy Dispense ======================== */
+.dispense-row {
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 0.75rem;
+  background: var(--bg-hover);
+}
+
+.dispense-prescribed { font-size: 0.85rem; margin-bottom: 0.5rem; }
+
+/* ======================== Bed Board ======================== */
+.bed-board { display: flex; flex-direction: column; gap: 1.5rem; }
+
+.ward-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+}
+
+.ward-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.ward-header h3 { font-size: 0.95rem; }
+
+.bed-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 0.75rem;
+}
+
+.bed-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.75rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  text-align: center;
+  transition: all 0.15s;
+}
+
+.bed-vacant { background: rgba(5, 150, 105, 0.08); border-color: rgba(5, 150, 105, 0.3); color: var(--success); }
+.bed-occupied { background: rgba(220, 38, 38, 0.08); border-color: rgba(220, 38, 38, 0.3); color: var(--danger); cursor: pointer; }
+.bed-occupied:hover { box-shadow: var(--shadow); }
+
+.bed-name { font-weight: 700; font-size: 0.9rem; color: var(--text); }
+.bed-status-label { font-size: 0.72rem; font-weight: 600; }
+
+/* ======================== IPD Progress Notes ======================== */
+.note-input-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.note-input-row textarea { flex: 1; }
+
+.notes-list { display: flex; flex-direction: column; gap: 0.6rem; }
+
+.note-item {
+  padding: 0.6rem 0.85rem;
+  border-left: 3px solid var(--primary);
+  background: var(--bg-hover);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.note-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.note-item p { font-size: 0.85rem; }
+
+/* ======================== Lab ======================== */
+.test-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.test-check-item {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+}
+
+.result-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 0.75rem;
+}
+
+.result-test-name {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+/* ======================== Billing ======================== */
+.invoice-totals {
+  margin: 1rem 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.invoice-totals > div {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.3rem 0;
+  font-size: 0.9rem;
+}
+
+.invoice-grand {
+  border-top: 2px solid var(--border);
+  margin-top: 0.4rem;
+  padding-top: 0.6rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.payment-row {
+  padding: 0.75rem;
+  background: var(--bg-hover);
+  border-radius: var(--radius-sm);
+  margin-bottom: 1rem;
+}
+
+.cancel-box {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius);
+  background: rgba(220, 38, 38, 0.04);
+}
+
+/* ======================== Reports ======================== */
+.report-filters {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.report-filters .form-group { margin-bottom: 0; }
+
 /* ======================== Print ======================== */
 @media print {
   .sidebar, .app-header, .toast-container, .btn { display: none !important; }
   .app-main { margin: 0; }
   .page-content { padding: 0; }
+  .invoice-builder { grid-template-columns: 1fr; }
+  .print-only { display: block !important; }
+  .no-print { display: none !important; }
 }

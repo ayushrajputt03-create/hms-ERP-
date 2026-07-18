@@ -61,6 +61,10 @@ export default function PatientForm() {
     e.preventDefault()
     if (!form.name.trim()) { setError('Patient name is required.'); return }
     if (!form.phone.trim()) { setError('Phone number is required.'); return }
+    if (!/^[6-9]\d{9}$/.test(form.phone.trim().replace(/[\s-]/g, ''))) {
+      setError('Enter a valid 10-digit Indian mobile number.')
+      return
+    }
 
     setSaving(true)
     setError('')

@@ -15,25 +15,25 @@
         "patients": {
           ".read": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists()",
           "$patientId": {
-            ".write": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists()"
+            ".write": "auth != null && (root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'facility_admin' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'super_admin' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'receptionist' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'doctor' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'nurse')"
           }
         },
         "opdVisits": {
           ".read": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists()",
           "$visitId": {
-            ".write": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists()"
+            ".write": "auth != null && (root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'facility_admin' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'super_admin' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'receptionist' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'doctor' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'nurse')"
           }
         },
         "doctorSchedules": {
           ".read": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists()",
           "$scheduleId": {
-            ".write": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists()"
+            ".write": "auth != null && (root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'facility_admin' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'super_admin' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'receptionist' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'doctor')"
           }
         },
         "prescriptionTemplates": {
           ".read": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists()",
           "$templateId": {
-            ".write": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists()"
+            ".write": "auth != null && (root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'facility_admin' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'super_admin' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'doctor')"
           }
         },
         "tariffMaster": {
@@ -51,31 +51,31 @@
         "opd": {
           ".read": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists()",
           "$child": {
-            ".write": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists()"
+            ".write": "auth != null && (root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'facility_admin' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'super_admin' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'receptionist' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'doctor' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'nurse')"
           }
         },
         "ipd": {
           ".read": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists()",
           "$child": {
-            ".write": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists()"
+            ".write": "auth != null && (root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'facility_admin' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'super_admin' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'doctor' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'nurse')"
           }
         },
         "pharmacy": {
           ".read": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists()",
           "$child": {
-            ".write": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists()"
+            ".write": "auth != null && (root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'facility_admin' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'super_admin' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'pharmacist')"
           }
         },
         "lab": {
           ".read": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists()",
           "$child": {
-            ".write": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists()"
+            ".write": "auth != null && (root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'facility_admin' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'super_admin' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'lab_tech' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'doctor')"
           }
         },
         "billing": {
           ".read": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists()",
           "$child": {
-            ".write": "auth != null && root.child('facilities').child($facilityId).child('staff').child(auth.uid).exists()"
+            ".write": "auth != null && (root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'facility_admin' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'super_admin' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'billing_staff' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'receptionist' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'pharmacist' || root.child('facilities').child($facilityId).child('staff').child(auth.uid).child('role').val() === 'doctor')"
           }
         },
         "auditLog": {

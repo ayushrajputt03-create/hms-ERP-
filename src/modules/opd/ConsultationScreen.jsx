@@ -23,11 +23,19 @@ export default function ConsultationScreen() {
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
 
-  const [vitals, setVitals] = useState({ bp: '', temp: '', pulse: '', spo2: '' })
+  const [vitals, setVitals] = useState({ bp: '', temp: '', pulse: '', spo2: '', weight: '', height: '' })
   const [chiefComplaint, setChiefComplaint] = useState('')
   const [diagnosis, setDiagnosis] = useState('')
   const [notes, setNotes] = useState('')
   const [prescription, setPrescription] = useState([])
+  const [followUpDate, setFollowUpDate] = useState('')
+
+  const bmi = (() => {
+    const w = parseFloat(vitals.weight)
+    const h = parseFloat(vitals.height)
+    if (!w || !h) return null
+    return (w / ((h / 100) ** 2)).toFixed(1)
+  })()
 
   const [history, setHistory] = useState([])
 
@@ -44,7 +52,8 @@ export default function ConsultationScreen() {
     setDiagnosis(v.diagnosis || '')
     setNotes(v.notes || '')
     setPrescription(v.prescription || [])
-    if (v.vitals) setVitals(v.vitals)
+    setFollowUpDate(v.followUpDate || '')
+    if (v.vitals) setVitals({ weight: '', height: '', ...v.vitals })
 
     if (v.patientId) {
       const p = await getDocument(`facilities/${facilityId}/patients/${v.patientId}`)
@@ -66,11 +75,12 @@ export default function ConsultationScreen() {
     setSaved(false)
     try {
       await updateDocument(`facilities/${facilityId}/opdVisits/${visitId}`, {
-        vitals,
+        vitals: { ...vitals, bmi },
         chiefComplaint: chiefComplaint.trim(),
         diagnosis: diagnosis.trim(),
         notes: notes.trim(),
         prescription,
+        followUpDate: followUpDate || null,
         status: 'in_progress',
       }, {
         user: staffProfile?.name || user?.email,
@@ -92,11 +102,12 @@ export default function ConsultationScreen() {
     setError('')
     try {
       await updateDocument(`facilities/${facilityId}/opdVisits/${visitId}`, {
-        vitals,
+        vitals: { ...vitals, bmi },
         chiefComplaint: chiefComplaint.trim(),
         diagnosis: diagnosis.trim(),
         notes: notes.trim(),
         prescription,
+        followUpDate: followUpDate || null,
         status: 'completed',
         completedAt: Date.now(),
       }, {
@@ -212,7 +223,23 @@ export default function ConsultationScreen() {
                 <label><Droplets size={12} /> SpO2 (%)</label>
                 <input value={vitals.spo2} onChange={updateVital('spo2')} placeholder="98" disabled={isCompleted} />
               </div>
+              <div className="form-group">
+                <label>Weight (kg)</label>
+                <input value={vitals.weight} onChange={updateVital('weight')} placeholder="70" disabled={isCompleted} />
+              </div>
+              <div className="form-group">
+                <label>Height (cm)</label>
+                <input value={vitals.height} onChange={updateVital('height')} placeholder="170" disabled={isCompleted} />
+              </div>
             </div>
+            {bmi && (
+              <div className="bmi-display">
+                BMI: <strong>{bmi}</strong>
+                <span className={`badge ${bmi < 18.5 ? 'badge-warning' : bmi < 25 ? 'badge-success' : bmi < 30 ? 'badge-warning' : 'badge-danger'}`}>
+                  {bmi < 18.5 ? 'Underweight' : bmi < 25 ? 'Normal' : bmi < 30 ? 'Overweight' : 'Obese'}
+                </span>
+              </div>
+            )}
           </fieldset>
 
           <div className="consultation-history">
@@ -268,6 +295,29 @@ export default function ConsultationScreen() {
               rows={2}
               disabled={isCompleted}
             />
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label>Follow-up Date</label>
+              <input
+                type="date"
+                value={followUpDate}
+                onChange={(e) => setFollowUpDate(e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
+                disabled={isCompleted}
+              />
+            </div>
+            {!isCompleted && (
+              <div className="form-group" style={{ alignSelf: 'flex-end' }}>
+                <button
+                  className="btn btn-outline"
+                  onClick={() => navigate(`/ipd/admit?patientId=${visit.patientId}&visitId=${visitId}`)}
+                >
+                  Admit to IPD
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -3,13 +3,14 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '@hooks/useAuth'
 import { useFacility } from '@hooks/useFacility'
 import { usePermission } from '@hooks/usePermission'
-import { getDocument, subscribeToCollection } from '@lib/db'
+import { getDocument, subscribeToCollection, updateDocument } from '@lib/db'
 import { formatDate, calculateAge, getInitials } from '@lib/utils'
+import Modal from '@components/Modal'
 import PatientTimeline from './PatientTimeline'
 import PatientQR from './PatientQR'
 import {
   ChevronLeft, Edit, Phone, Mail, MapPin, AlertTriangle,
-  Heart, User, Clock, FileText, Receipt, FlaskConical, BedDouble,
+  Heart, User, Clock, FileText, Receipt, FlaskConical, BedDouble, Archive,
 } from 'lucide-react'
 
 const TABS = [
@@ -23,11 +24,14 @@ const TABS = [
 export default function PatientProfile() {
   const { patientId } = useParams()
   const navigate = useNavigate()
+  const { user, staffProfile } = useAuth()
   const { facilityId } = useFacility()
   const { can } = usePermission()
   const [patient, setPatient] = useState(null)
   const [tab, setTab] = useState('overview')
   const [loading, setLoading] = useState(true)
+  const [archiveModal, setArchiveModal] = useState(false)
+  const [archiving, setArchiving] = useState(false)
 
   const [visits, setVisits] = useState([])
   const [admissions, setAdmissions] = useState([])
@@ -65,6 +69,24 @@ export default function PatientProfile() {
     return () => unsubs.forEach((fn) => fn())
   }, [facilityId, patientId])
 
+  const handleArchive = async () => {
+    setArchiving(true)
+    try {
+      await updateDocument(`facilities/${facilityId}/patients/${patientId}`, {
+        status: 'archived',
+        archivedAt: Date.now(),
+      }, {
+        user: staffProfile?.name || user?.email,
+        facilityId,
+        audit: { action: 'patient_archived', module: 'patients' },
+      })
+      navigate('/patients')
+    } catch (err) {
+      console.error('Archive failed:', err)
+      setArchiving(false)
+    }
+  }
+
   if (loading) return <div className="empty-state">Loading patient...</div>
   if (!patient) return <div className="empty-state">Patient not found.</div>
 
@@ -76,12 +98,36 @@ export default function PatientProfile() {
         <button className="btn btn-outline" onClick={() => navigate('/patients')}>
           <ChevronLeft size={16} /> Back to Patients
         </button>
-        {can('patients', 'update') && (
-          <button className="btn btn-outline" onClick={() => navigate(`/patients/${patientId}/edit`)}>
-            <Edit size={14} /> Edit
-          </button>
-        )}
+        <div className="profile-header-actions">
+          {can('patients', 'update') && (
+            <button className="btn btn-outline" onClick={() => navigate(`/patients/${patientId}/edit`)}>
+              <Edit size={14} /> Edit
+            </button>
+          )}
+          {can('patients', 'delete') && patient.status !== 'archived' && (
+            <button className="btn btn-outline btn-danger" onClick={() => setArchiveModal(true)}>
+              <Archive size={14} /> Archive
+            </button>
+          )}
+        </div>
       </div>
+
+      {patient.status === 'archived' && (
+        <div className="auth-error">This patient record is archived.</div>
+      )}
+
+      <Modal isOpen={archiveModal} onClose={() => setArchiveModal(false)} title="Archive Patient" size="sm">
+        <p style={{ marginBottom: '1rem' }}>
+          Archive <strong>{patient.name}</strong> ({patient.uhid})? The record will be hidden from
+          the patient list but visit history and billing records stay intact.
+        </p>
+        <div className="form-actions">
+          <button className="btn btn-outline" onClick={() => setArchiveModal(false)}>Cancel</button>
+          <button className="btn btn-primary" style={{ background: 'var(--danger)' }} onClick={handleArchive} disabled={archiving}>
+            {archiving ? 'Archiving...' : 'Yes, Archive'}
+          </button>
+        </div>
+      </Modal>
 
       {patient.allergies?.length > 0 && (
         <div className="allergy-banner">

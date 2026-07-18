@@ -1,6 +1,6 @@
 import {
   ref, get, set, update, remove, push,
-  onValue, query, orderByChild, equalTo,
+  onValue, query, orderByChild, equalTo, runTransaction,
 } from 'firebase/database'
 import { db } from './firebase'
 import { writeAuditLog } from './audit'
@@ -13,6 +13,7 @@ export async function getDocument(path) {
 }
 
 export async function setDocument(path, data, { user, facilityId, audit } = {}) {
+  if (!db) return null
   const r = ref(db, path)
   const payload = { ...data, updatedAt: Date.now() }
 
@@ -31,6 +32,7 @@ export async function setDocument(path, data, { user, facilityId, audit } = {}) 
 }
 
 export async function addDocument(collectionPath, data, { user, facilityId, audit } = {}) {
+  if (!db) return null
   const listRef = ref(db, collectionPath)
   const newRef = push(listRef)
   const payload = { ...data, createdAt: Date.now(), updatedAt: Date.now() }
@@ -49,6 +51,7 @@ export async function addDocument(collectionPath, data, { user, facilityId, audi
 }
 
 export async function updateDocument(path, data, { user, facilityId, audit } = {}) {
+  if (!db) return null
   const r = ref(db, path)
   const payload = { ...data, updatedAt: Date.now() }
 
@@ -67,6 +70,7 @@ export async function updateDocument(path, data, { user, facilityId, audit } = {
 }
 
 export async function deleteDocument(path, { user, facilityId, audit } = {}) {
+  if (!db) return null
   const r = ref(db, path)
 
   if (audit && user && facilityId) {
@@ -117,12 +121,17 @@ export function subscribeToCollection(path, callback) {
 }
 
 export async function incrementCounter(counterPath, field = 'value') {
-  const r = ref(db, counterPath)
-  const snap = await get(r)
-  const current = snap.exists() ? (snap.val()[field] || 0) : 0
-  const newValue = current + 1
-  await update(r, { [field]: newValue })
-  return newValue
+  if (!db) return null
+  const r = ref(db, `${counterPath}/${field}`)
+  const result = await runTransaction(r, (current) => (current || 0) + 1)
+  return result.snapshot.val()
+}
+
+export async function adjustValue(path, delta) {
+  if (!db) return null
+  const r = ref(db, path)
+  const result = await runTransaction(r, (current) => (current || 0) + delta)
+  return result.snapshot.val()
 }
 
 export { db }

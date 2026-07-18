@@ -26,6 +26,15 @@ const AppointmentCalendar = lazy(() => import('@modules/opd/AppointmentCalendar'
 const QueueScreen = lazy(() => import('@modules/opd/QueueScreen'))
 const ConsultationScreen = lazy(() => import('@modules/opd/ConsultationScreen'))
 
+const PharmacyPage = lazy(() => import('@modules/pharmacy/PharmacyPage'))
+const LabPage = lazy(() => import('@modules/lab/LabPage'))
+const BillingPage = lazy(() => import('@modules/billing/BillingPage'))
+const ReportsPage = lazy(() => import('@modules/reports/ReportsPage'))
+
+const IPDPage = lazy(() => import('@modules/ipd/IPDPage'))
+const AdmissionForm = lazy(() => import('@modules/ipd/AdmissionForm'))
+const AdmissionDetail = lazy(() => import('@modules/ipd/AdmissionDetail'))
+
 function Loader() {
   return <LoadingScreen message="Loading module..." />
 }
@@ -106,35 +115,40 @@ export default function AppRoutes() {
             <ModuleGate module="admin"><AuditLogViewer /></ModuleGate>
           } />
 
-          {/* Placeholder routes for future modules */}
-          <Route path="ipd/*" element={
-            <ModuleGate module="ipd"><PlaceholderModule name="IPD" /></ModuleGate>
+          {/* IPD module */}
+          <Route path="ipd" element={
+            <ModuleGate module="ipd"><IPDPage /></ModuleGate>
           } />
-          <Route path="pharmacy/*" element={
-            <ModuleGate module="pharmacy"><PlaceholderModule name="Pharmacy" /></ModuleGate>
+          <Route path="ipd/admit" element={
+            <ModuleGate module="ipd"><AdmissionForm /></ModuleGate>
           } />
-          <Route path="lab/*" element={
-            <ModuleGate module="lab"><PlaceholderModule name="Lab / Diagnostics" /></ModuleGate>
+          <Route path="ipd/admission/:admissionId" element={
+            <ModuleGate module="ipd"><AdmissionDetail /></ModuleGate>
           } />
-          <Route path="billing/*" element={
-            <ModuleGate module="billing"><PlaceholderModule name="Billing" /></ModuleGate>
+
+          {/* Pharmacy module */}
+          <Route path="pharmacy" element={
+            <ModuleGate module="pharmacy"><PharmacyPage /></ModuleGate>
           } />
-          <Route path="reports/*" element={
-            <ModuleGate module="reports"><PlaceholderModule name="Reports" /></ModuleGate>
+
+          {/* Lab module */}
+          <Route path="lab" element={
+            <ModuleGate module="lab"><LabPage /></ModuleGate>
+          } />
+
+          {/* Billing module */}
+          <Route path="billing" element={
+            <ModuleGate module="billing"><BillingPage /></ModuleGate>
+          } />
+
+          {/* Reports module */}
+          <Route path="reports" element={
+            <ModuleGate module="reports"><ReportsPage /></ModuleGate>
           } />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
     </Suspense>
-  )
-}
-
-function PlaceholderModule({ name }) {
-  return (
-    <div className="placeholder-module">
-      <h2>{name}</h2>
-      <p>This module is coming soon. The foundation is ready — module implementation follows in the next phase.</p>
-    </div>
   )
 }
