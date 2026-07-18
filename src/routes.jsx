@@ -29,6 +29,7 @@ const ConsultationScreen = lazy(() => import('@modules/opd/ConsultationScreen'))
 const PharmacyPage = lazy(() => import('@modules/pharmacy/PharmacyPage'))
 const LabPage = lazy(() => import('@modules/lab/LabPage'))
 const BillingPage = lazy(() => import('@modules/billing/BillingPage'))
+const InvoiceView = lazy(() => import('@modules/billing/InvoiceView'))
 const ReportsPage = lazy(() => import('@modules/reports/ReportsPage'))
 
 const IPDPage = lazy(() => import('@modules/ipd/IPDPage'))
@@ -139,6 +140,9 @@ export default function AppRoutes() {
           {/* Billing module */}
           <Route path="billing" element={
             <ModuleGate module="billing"><BillingPage /></ModuleGate>
+          } />
+          <Route path="billing/invoice/:invoiceId" element={
+            <ModuleGate module="billing"><InvoiceView /></ModuleGate>
           } />
 
           {/* Reports module */}

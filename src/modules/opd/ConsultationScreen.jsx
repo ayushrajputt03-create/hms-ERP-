@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '@hooks/useAuth'
 import { useFacility } from '@hooks/useFacility'
-import { getDocument, updateDocument, addDocument, queryDocuments } from '@lib/db'
+import { getDocument, updateDocument, queryDocuments } from '@lib/db'
 import { formatDate, calculateAge } from '@lib/utils'
 import PrescriptionBuilder from './PrescriptionBuilder'
 import {
@@ -101,6 +101,13 @@ export default function ConsultationScreen() {
     setSaving(true)
     setError('')
     try {
+      // Resolve the consultation fee once and stamp it on the visit. Billing
+      // sources un-billed visits directly (billed:false) — no separate charge doc,
+      // so there's a single source of truth and no way to double-bill.
+      const tariffs = await queryDocuments(`facilities/${facilityId}/tariffMaster`)
+      const consultTariff = tariffs.find((t) => t.category === 'consultation' && t.status === 'active')
+      const consultationFee = consultTariff?.amount || 500
+
       await updateDocument(`facilities/${facilityId}/opdVisits/${visitId}`, {
         vitals: { ...vitals, bmi },
         chiefComplaint: chiefComplaint.trim(),
@@ -110,32 +117,12 @@ export default function ConsultationScreen() {
         followUpDate: followUpDate || null,
         status: 'completed',
         completedAt: Date.now(),
+        consultationFee,
+        billed: false,
       }, {
         user: staffProfile?.name || user?.email,
         facilityId,
         audit: { action: 'consultation_completed', module: 'opd' },
-      })
-
-      const tariffs = await queryDocuments(`facilities/${facilityId}/tariffMaster`)
-      const consultTariff = tariffs.find((t) => t.category === 'consultation' && t.status === 'active')
-      const amount = consultTariff?.amount || 500
-
-      await addDocument(`facilities/${facilityId}/billing`, {
-        patientId: visit.patientId,
-        patientName: visit.patientName || patient?.name || '',
-        patientUhid: visit.patientUhid || patient?.uhid || '',
-        type: 'opd_consultation',
-        description: `OPD Consultation — Dr. ${visit.doctorName || ''}`,
-        amount,
-        status: 'pending',
-        visitId,
-        doctorId: visit.doctorId,
-        invoiceDate: Date.now(),
-        facilityId,
-      }, {
-        user: staffProfile?.name || user?.email,
-        facilityId,
-        audit: { action: 'billing_line_created', module: 'billing' },
       })
 
       if (patient) {

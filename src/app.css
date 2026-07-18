@@ -2027,12 +2027,148 @@ a:hover { text-decoration: underline; }
 
 .report-filters .form-group { margin-bottom: 0; }
 
+/* ======================== Bill Builder ======================== */
+.patient-search-results {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-width: 480px;
+}
+
+.patient-search-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  cursor: pointer;
+  font-size: 0.85rem;
+  text-align: left;
+  color: var(--text);
+}
+
+.patient-search-row:hover { border-color: var(--primary); background: var(--bg-hover); }
+.psr-name { font-weight: 600; }
+
+.builder-patient {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ======================== TPA Claims ======================== */
+.claims-list { display: flex; flex-direction: column; gap: 0.75rem; }
+
+.claim-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+}
+
+.claim-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.claim-body {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.claim-body .form-group { margin-bottom: 0; }
+.claim-date { font-size: 0.75rem; align-self: center; }
+
+/* ======================== Invoice Sheet (print-friendly) ======================== */
+.invoice-sheet {
+  max-width: 800px;
+  margin: 0 auto;
+  background: #fff;
+  color: #1A1D1F;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2rem;
+}
+
+.invoice-brand {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 2px solid #1D6FA5;
+  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+}
+
+.invoice-brand h1 { font-size: 1.4rem; color: #1D6FA5; margin-bottom: 0.25rem; }
+.invoice-brand p { font-size: 0.8rem; color: #5B6168; line-height: 1.5; }
+
+.invoice-meta-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 2rem;
+  margin-bottom: 1.25rem;
+}
+
+.invoice-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #5B6168; }
+.invoice-number { font-size: 1.05rem; font-weight: 700; color: #1A1D1F; }
+
+.invoice-table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+.invoice-table th {
+  text-align: left;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  color: #5B6168;
+  border-bottom: 1px solid #E3E5E8;
+  padding: 0.5rem 0.6rem;
+}
+.invoice-table td {
+  padding: 0.5rem 0.6rem;
+  font-size: 0.88rem;
+  border-bottom: 1px solid #F0F1F2;
+  color: #1A1D1F;
+}
+
+.invoice-totals-box {
+  margin-left: auto;
+  max-width: 320px;
+}
+.invoice-totals-box .summary-row { color: #1A1D1F; }
+
+.invoice-insurance-note {
+  margin-top: 1rem;
+  padding: 0.6rem 0.85rem;
+  background: #F6F7F8;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  color: #1A1D1F;
+}
+
+.invoice-foot {
+  margin-top: 1.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #E3E5E8;
+  text-align: center;
+  font-size: 0.75rem;
+}
+
 /* ======================== Print ======================== */
 @media print {
-  .sidebar, .app-header, .toast-container, .btn { display: none !important; }
+  .sidebar, .app-header, .toast-container, .btn, .no-print { display: none !important; }
   .app-main { margin: 0; }
   .page-content { padding: 0; }
   .invoice-builder { grid-template-columns: 1fr; }
   .print-only { display: block !important; }
-  .no-print { display: none !important; }
+  .invoice-sheet { border: none; max-width: 100%; padding: 0; }
+  body, .app-shell { background: #fff !important; }
 }
