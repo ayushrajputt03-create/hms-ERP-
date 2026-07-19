@@ -1,43 +1,59 @@
 import { useState, useEffect } from 'react'
 import { useFacility } from '@hooks/useFacility'
+import { useAuth } from '@hooks/useAuth'
 import { subscribeToCollection } from '@lib/db'
-import { usePermission } from '@hooks/usePermission'
+import { canDispense, pharmacyAlertCount } from '@lib/pharmacy'
 import InventoryTab from './InventoryTab'
 import DispenseTab from './DispenseTab'
-import PurchasesTab from './PurchasesTab'
-import StockReportTab from './StockReportTab'
-import { Pill, PackageOpen, ShoppingCart, BarChart2 } from 'lucide-react'
-
-const TABS = [
-  { key: 'inventory', label: 'Inventory', icon: Pill },
-  { key: 'dispense', label: 'Dispense', icon: PackageOpen },
-  { key: 'purchases', label: 'Purchases', icon: ShoppingCart },
-  { key: 'report', label: 'Stock Report', icon: BarChart2 },
-]
+import StockInTab from './StockInTab'
+import SalesTab from './SalesTab'
+import { Pill, PackageOpen, PackagePlus, ReceiptText, AlertTriangle, CalendarX } from 'lucide-react'
 
 export default function PharmacyPage() {
   const { facilityId } = useFacility()
-  const { can } = usePermission()
-  const [tab, setTab] = useState('inventory')
+  const { staffProfile } = useAuth()
+  const canWrite = canDispense(staffProfile?.role)
+
   const [medicines, setMedicines] = useState([])
+  const [batches, setBatches] = useState([])
   const [loading, setLoading] = useState(true)
+  const [tab, setTab] = useState('inventory')
 
   useEffect(() => {
     if (!facilityId) { setLoading(false); return }
-    return subscribeToCollection(`facilities/${facilityId}/pharmacy/medicines`, (data) => {
-      setMedicines(data.sort((a, b) => (a.name || '').localeCompare(b.name || '')))
-      setLoading(false)
-    })
+    const unsubs = [
+      subscribeToCollection(`facilities/${facilityId}/pharmacy/medicines`, (d) => {
+        setMedicines(d.sort((a, b) => (a.name || '').localeCompare(b.name || '')))
+        setLoading(false)
+      }),
+      subscribeToCollection(`facilities/${facilityId}/pharmacy/batches`, setBatches),
+    ]
+    return () => unsubs.forEach((fn) => fn())
   }, [facilityId])
 
-  const canWrite = can('pharmacy', 'create') || can('pharmacy', 'update')
+  const alerts = pharmacyAlertCount(medicines, batches)
+
+  const TABS = [
+    { key: 'inventory', label: 'Inventory', icon: Pill },
+    canWrite && { key: 'dispense', label: 'Dispense', icon: PackageOpen },
+    canWrite && { key: 'stockin', label: 'Stock-in', icon: PackagePlus },
+    { key: 'sales', label: 'Sales', icon: ReceiptText },
+  ].filter(Boolean)
 
   return (
     <div>
       <div className="page-header">
         <div>
           <h2><Pill size={22} /> Pharmacy</h2>
-          <p>{medicines.length} medicine{medicines.length !== 1 ? 's' : ''} in inventory</p>
+          <p>{medicines.length} medicine{medicines.length !== 1 ? 's' : ''} · {batches.length} batch{batches.length !== 1 ? 'es' : ''}</p>
+        </div>
+        <div className="pharmacy-alerts">
+          {alerts.lowStock > 0 && (
+            <span className="badge badge-danger"><AlertTriangle size={12} /> {alerts.lowStock} low stock</span>
+          )}
+          {alerts.nearExpiry > 0 && (
+            <span className="badge badge-warning"><CalendarX size={12} /> {alerts.nearExpiry} near expiry</span>
+          )}
         </div>
       </div>
 
@@ -50,13 +66,13 @@ export default function PharmacyPage() {
       </div>
 
       {loading ? (
-        <div className="empty-state">Loading pharmacy data...</div>
+        <div className="empty-state">Loading pharmacy…</div>
       ) : (
         <>
-          {tab === 'inventory' && <InventoryTab medicines={medicines} canWrite={canWrite} />}
-          {tab === 'dispense' && <DispenseTab medicines={medicines} canWrite={canWrite} />}
-          {tab === 'purchases' && <PurchasesTab medicines={medicines} canWrite={canWrite} />}
-          {tab === 'report' && <StockReportTab medicines={medicines} />}
+          {tab === 'inventory' && <InventoryTab medicines={medicines} batches={batches} canWrite={canWrite} />}
+          {tab === 'dispense' && canWrite && <DispenseTab medicines={medicines} batches={batches} />}
+          {tab === 'stockin' && canWrite && <StockInTab medicines={medicines} />}
+          {tab === 'sales' && <SalesTab />}
         </>
       )}
     </div>

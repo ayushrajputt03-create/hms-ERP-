@@ -1,37 +1,31 @@
-import { useState, useEffect } from 'react'
-import { useAuth } from '@hooks/useAuth'
+import { useState, useEffect, useMemo } from 'react'
 import { useFacility } from '@hooks/useFacility'
-import { subscribeToCollection, addDocument, updateDocument, adjustValue } from '@lib/db'
+import { subscribeToCollection } from '@lib/db'
+import { dispenseMedicine } from '@lib/pharmacy'
 import { formatINR, formatDate } from '@lib/utils'
 import Modal from '@components/Modal'
-import { PackageOpen, Search, ShoppingBag } from 'lucide-react'
+import { useToast } from '@components/Toast'
+import { PackageOpen, Search, ShoppingBag, Plus, Trash2, AlertTriangle } from 'lucide-react'
 
-export default function DispenseTab({ medicines, canWrite }) {
-  const { user, staffProfile } = useAuth()
+export default function DispenseTab({ medicines, batches }) {
   const { facilityId } = useFacility()
   const [visits, setVisits] = useState([])
   const [search, setSearch] = useState('')
-  const [dispenseModal, setDispenseModal] = useState(null)
-  const [walkInModal, setWalkInModal] = useState(false)
+  const [rxModal, setRxModal] = useState(null)
+  const [walkIn, setWalkIn] = useState(false)
 
   useEffect(() => {
     if (!facilityId) return
     return subscribeToCollection(`facilities/${facilityId}/opdVisits`, (data) => {
-      setVisits(
-        data
-          .filter((v) => v.status === 'completed' && v.prescription?.length > 0 && !v.dispensed)
-          .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0))
-      )
+      setVisits(data
+        .filter((v) => v.status === 'completed' && v.prescription?.length > 0 && !v.dispensed)
+        .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0)))
     })
   }, [facilityId])
 
   const filtered = search.trim()
-    ? visits.filter((v) => {
-        const q = search.toLowerCase()
-        return (v.patientUhid || '').toLowerCase().includes(q)
-          || (v.patientName || '').toLowerCase().includes(q)
-          || String(v.tokenNumber || '').includes(q)
-      })
+    ? visits.filter((v) => [v.patientUhid, v.patientName, v.tokenNumber]
+        .some((f) => String(f || '').toLowerCase().includes(search.toLowerCase())))
     : visits
 
   return (
@@ -39,17 +33,12 @@ export default function DispenseTab({ medicines, canWrite }) {
       <div className="pharmacy-alerts">
         <div className="search-input" style={{ flex: 1, maxWidth: 380 }}>
           <Search size={15} />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by UHID, patient name, or token..."
-          />
+          <input value={search} onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search prescription by UHID, name, token…" />
         </div>
-        {canWrite && (
-          <button className="btn btn-outline" onClick={() => setWalkInModal(true)}>
-            <ShoppingBag size={15} /> Walk-in Sale
-          </button>
-        )}
+        <button className="btn btn-outline" onClick={() => setWalkIn(true)}>
+          <ShoppingBag size={15} /> Walk-in Sale
+        </button>
       </div>
 
       {filtered.length === 0 ? (
@@ -65,256 +54,168 @@ export default function DispenseTab({ medicines, canWrite }) {
                   <span> — Token #{v.tokenNumber} — {formatDate(v.completedAt, 'datetime')}</span>
                 </div>
                 <div className="queue-doctor-name">
-                  {v.prescription.length} medicine{v.prescription.length !== 1 ? 's' : ''} prescribed by Dr. {v.doctorName}
+                  {v.prescription.length} medicine{v.prescription.length !== 1 ? 's' : ''} — Dr. {v.doctorName}
                 </div>
               </div>
-              {canWrite && (
-                <button className="btn btn-primary btn-sm" onClick={() => setDispenseModal(v)}>
-                  <PackageOpen size={14} /> Dispense
-                </button>
-              )}
+              <button className="btn btn-primary btn-sm" onClick={() => setRxModal(v)}>
+                <PackageOpen size={14} /> Dispense
+              </button>
             </div>
           ))}
         </div>
       )}
 
-      {dispenseModal && (
+      {rxModal && (
         <DispenseModal
-          visit={dispenseModal}
-          medicines={medicines}
-          onClose={() => setDispenseModal(null)}
-          facilityId={facilityId}
-          performedBy={staffProfile?.name || user?.email}
+          title={`Dispense — ${rxModal.patientName}`}
+          medicines={medicines} batches={batches}
+          patientId={rxModal.patientId} opdVisitId={rxModal.id}
+          prescription={rxModal.prescription}
+          onClose={() => setRxModal(null)}
         />
       )}
-
-      {walkInModal && (
-        <WalkInModal
-          medicines={medicines}
-          onClose={() => setWalkInModal(false)}
-          facilityId={facilityId}
-          performedBy={staffProfile?.name || user?.email}
+      {walkIn && (
+        <DispenseModal
+          title="Walk-in Sale"
+          medicines={medicines} batches={batches}
+          patientId={null} opdVisitId={null}
+          onClose={() => setWalkIn(false)}
         />
       )}
     </div>
   )
 }
 
-function DispenseModal({ visit, medicines, onClose, facilityId, performedBy }) {
-  const [rows, setRows] = useState(
-    visit.prescription.map((p) => ({
-      prescribed: p,
-      medicineId: medicines.find((m) => m.name.toLowerCase() === (p.medicine || '').toLowerCase())?.id || '',
-      qty: 1,
-    }))
-  )
+function DispenseModal({ title, medicines, batches, patientId, opdVisitId, prescription, onClose }) {
+  const toast = useToast()
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  const updateRow = (i, field, value) => {
-    setRows(rows.map((r, idx) => idx === i ? { ...r, [field]: value } : r))
+  // Batches with stock, grouped by medicine, earliest expiry first (FEFO).
+  const batchesByMed = useMemo(() => {
+    const map = {}
+    batches.filter((b) => (Number(b.quantity) || 0) > 0).forEach((b) => {
+      (map[b.medicineId] ||= []).push(b)
+    })
+    Object.values(map).forEach((arr) => arr.sort((a, b) =>
+      String(a.expiryDate || '').localeCompare(String(b.expiryDate || ''))))
+    return map
+  }, [batches])
+
+  const initialRows = () => {
+    if (!prescription) return [{ medicineId: '', batchId: '', qty: 1 }]
+    return prescription.map((p) => {
+      const med = medicines.find((m) => (m.name || '').toLowerCase() === (p.medicine || '').toLowerCase())
+      const firstBatch = med ? (batchesByMed[med.id] || [])[0] : null
+      return { medicineId: med?.id || '', batchId: firstBatch?.id || '', qty: 1, prescribed: p }
+    })
   }
+  const [rows, setRows] = useState(initialRows)
+
+  const updateRow = (i, field, value) => {
+    setRows(rows.map((r, idx) => {
+      if (idx !== i) return r
+      const next = { ...r, [field]: value }
+      if (field === 'medicineId') next.batchId = (batchesByMed[value] || [])[0]?.id || ''
+      return next
+    }))
+  }
+  const addRow = () => setRows([...rows, { medicineId: '', batchId: '', qty: 1 }])
+  const removeRow = (i) => setRows(rows.filter((_, idx) => idx !== i))
+
+  const batchById = useMemo(() => Object.fromEntries(batches.map((b) => [b.id, b])), [batches])
+  const priceOf = (r) => Number(batchById[r.batchId]?.sellingPrice ?? medicines.find((m) => m.id === r.medicineId)?.sellingPrice) || 0
+  const total = rows.reduce((s, r) => s + (r.batchId && r.qty > 0 ? Number(r.qty) * priceOf(r) : 0), 0)
 
   const handleDispense = async () => {
-    const toDispense = rows.filter((r) => r.medicineId && Number(r.qty) > 0)
-    if (toDispense.length === 0) { setError('Select at least one medicine with quantity.'); return }
+    const items = rows
+      .filter((r) => r.medicineId && r.batchId && Number(r.qty) > 0)
+      .map((r) => ({ medicineId: r.medicineId, batchId: r.batchId, quantity: Number(r.qty), unitPrice: priceOf(r) }))
+    if (items.length === 0) { setError('Add at least one medicine with a batch and quantity.'); return }
 
-    for (const row of toDispense) {
-      const med = medicines.find((m) => m.id === row.medicineId)
-      if (!med) continue
-      if (Number(row.qty) > (med.quantity ?? 0)) {
-        setError(`Insufficient stock for ${med.name} (available: ${med.quantity ?? 0}).`)
+    // Client-side stock pre-check (the RPC is the real gate under lock).
+    for (const it of items) {
+      const b = batchById[it.batchId]
+      if ((Number(b?.quantity) || 0) < it.quantity) {
+        setError(`Insufficient stock for ${b?.medicineName} (batch ${b?.batchNumber}, available ${b?.quantity ?? 0}).`)
         return
       }
     }
 
-    setSaving(true)
-    setError('')
+    setSaving(true); setError('')
     try {
-      const items = []
-      let total = 0
-      for (const row of toDispense) {
-        const med = medicines.find((m) => m.id === row.medicineId)
-        const qty = Number(row.qty)
-        const amount = qty * (med.unitPrice || 0)
-        await adjustValue(`facilities/${facilityId}/pharmacy/medicines/${row.medicineId}/quantity`, -qty)
-        items.push({ medicineId: row.medicineId, name: med.name, qty, unitPrice: med.unitPrice || 0, amount })
-        total += amount
-      }
-
-      await addDocument(`facilities/${facilityId}/pharmacy/sales`, {
-        type: 'prescription',
-        visitId: visit.id,
-        patientId: visit.patientId,
-        patientName: visit.patientName,
-        patientUhid: visit.patientUhid,
-        items,
-        total,
-        dispensedBy: performedBy,
-        saleDate: Date.now(),
-      }, {
-        user: performedBy, facilityId,
-        audit: { action: 'medicines_dispensed', module: 'pharmacy' },
-      })
-
-      await addDocument(`facilities/${facilityId}/billing`, {
-        patientId: visit.patientId,
-        patientName: visit.patientName,
-        patientUhid: visit.patientUhid,
-        type: 'pharmacy',
-        description: `Pharmacy — ${items.map((i) => `${i.name} ×${i.qty}`).join(', ')}`,
-        amount: total,
-        status: 'pending',
-        visitId: visit.id,
-        invoiceDate: Date.now(),
-        facilityId,
-      })
-
-      await updateDocument(`facilities/${facilityId}/opdVisits/${visit.id}`, {
-        dispensed: true, dispensedAt: Date.now(),
-      })
-
+      await dispenseMedicine({ patientId, opdVisitId, items })
+      toast.success('Dispensed.')
       onClose()
     } catch (err) {
       console.error('Dispense error:', err)
-      setError('Failed to dispense. Please retry.')
-    } finally {
-      setSaving(false)
-    }
+      // Surface the RPC's clear "Insufficient stock for X" message (race-safe gate).
+      setError(err.message || 'Failed to dispense.')
+    } finally { setSaving(false) }
   }
 
   return (
-    <Modal isOpen onClose={onClose} title={`Dispense — ${visit.patientName}`} size="lg">
-      {error && <div className="auth-error">{error}</div>}
+    <Modal isOpen onClose={onClose} title={title} size="lg">
+      {error && <div className="auth-error"><AlertTriangle size={13} /> {error}</div>}
+
       {rows.map((row, i) => {
-        const med = medicines.find((m) => m.id === row.medicineId)
+        const medBatches = batchesByMed[row.medicineId] || []
+        const batch = batchById[row.batchId]
         return (
           <div key={i} className="dispense-row">
-            <div className="dispense-prescribed">
-              <strong>{row.prescribed.medicine}</strong>
-              <span className="text-muted"> {row.prescribed.dosage} — {row.prescribed.frequency} — {row.prescribed.duration}</span>
-            </div>
-            <div className="form-row">
+            {row.prescribed && (
+              <div className="dispense-prescribed">
+                <strong>{row.prescribed.medicine}</strong>
+                <span className="text-muted"> {row.prescribed.dosage} — {row.prescribed.frequency} — {row.prescribed.duration}</span>
+              </div>
+            )}
+            <div className="form-row" style={{ alignItems: 'flex-end' }}>
               <div className="form-group">
-                <label>Stock Item</label>
+                <label>Medicine</label>
                 <select value={row.medicineId} onChange={(e) => updateRow(i, 'medicineId', e.target.value)}>
-                  <option value="">Not in stock / skip</option>
-                  {medicines.map((m) => (
-                    <option key={m.id} value={m.id}>{m.name} (stock: {m.quantity ?? 0})</option>
+                  <option value="">Select…</option>
+                  {medicines.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Batch (stock)</label>
+                <select value={row.batchId} onChange={(e) => updateRow(i, 'batchId', e.target.value)} disabled={!row.medicineId}>
+                  <option value="">{medBatches.length ? 'Select batch…' : 'No stock'}</option>
+                  {medBatches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.batchNumber} — {b.quantity} left{b.expiryDate ? ` — exp ${formatDate(b.expiryDate)}` : ''}
+                    </option>
                   ))}
                 </select>
               </div>
               <div className="form-group">
                 <label>Qty</label>
-                <input type="number" min="0" max={med?.quantity ?? 999} value={row.qty}
+                <input type="number" min="1" max={batch?.quantity ?? 999} value={row.qty}
                   onChange={(e) => updateRow(i, 'qty', e.target.value)} />
               </div>
               <div className="form-group">
                 <label>Amount</label>
-                <input disabled value={med ? formatINR(Number(row.qty || 0) * (med.unitPrice || 0)) : '—'} />
+                <input disabled value={batch ? formatINR(Number(row.qty || 0) * priceOf(row)) : '—'} />
               </div>
+              {!prescription && (
+                <button className="btn btn-icon btn-danger" onClick={() => removeRow(i)} style={{ marginBottom: '1rem' }}>
+                  <Trash2 size={15} />
+                </button>
+              )}
             </div>
           </div>
         )
       })}
-      <div className="form-actions">
-        <button className="btn btn-outline" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" onClick={handleDispense} disabled={saving}>
-          {saving ? 'Dispensing...' : 'Confirm Dispense'}
-        </button>
-      </div>
-    </Modal>
-  )
-}
 
-function WalkInModal({ medicines, onClose, facilityId, performedBy }) {
-  const [items, setItems] = useState([{ medicineId: '', qty: 1 }])
-  const [customerName, setCustomerName] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
+      {!prescription && (
+        <button className="btn btn-outline btn-sm" onClick={addRow}><Plus size={13} /> Add Item</button>
+      )}
 
-  const updateItem = (i, field, value) => {
-    setItems(items.map((it, idx) => idx === i ? { ...it, [field]: value } : it))
-  }
-
-  const total = items.reduce((sum, it) => {
-    const med = medicines.find((m) => m.id === it.medicineId)
-    return sum + (med ? Number(it.qty || 0) * (med.unitPrice || 0) : 0)
-  }, 0)
-
-  const handleSale = async () => {
-    const valid = items.filter((it) => it.medicineId && Number(it.qty) > 0)
-    if (valid.length === 0) { setError('Add at least one medicine.'); return }
-    for (const it of valid) {
-      const med = medicines.find((m) => m.id === it.medicineId)
-      if (Number(it.qty) > (med?.quantity ?? 0)) {
-        setError(`Insufficient stock for ${med?.name} (available: ${med?.quantity ?? 0}).`)
-        return
-      }
-    }
-
-    setSaving(true)
-    setError('')
-    try {
-      const saleItems = []
-      for (const it of valid) {
-        const med = medicines.find((m) => m.id === it.medicineId)
-        const qty = Number(it.qty)
-        await adjustValue(`facilities/${facilityId}/pharmacy/medicines/${it.medicineId}/quantity`, -qty)
-        saleItems.push({ medicineId: it.medicineId, name: med.name, qty, unitPrice: med.unitPrice || 0, amount: qty * (med.unitPrice || 0) })
-      }
-      await addDocument(`facilities/${facilityId}/pharmacy/sales`, {
-        type: 'walk_in',
-        customerName: customerName.trim() || 'Walk-in customer',
-        items: saleItems,
-        total,
-        dispensedBy: performedBy,
-        saleDate: Date.now(),
-      }, {
-        user: performedBy, facilityId,
-        audit: { action: 'walk_in_sale', module: 'pharmacy' },
-      })
-      onClose()
-    } catch (err) {
-      console.error('Walk-in sale error:', err)
-      setError('Failed to record sale.')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <Modal isOpen onClose={onClose} title="Walk-in Sale" size="md">
-      {error && <div className="auth-error">{error}</div>}
-      <div className="form-group">
-        <label>Customer Name</label>
-        <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Optional" />
-      </div>
-      {items.map((it, i) => (
-        <div key={i} className="form-row">
-          <div className="form-group">
-            <label>Medicine</label>
-            <select value={it.medicineId} onChange={(e) => updateItem(i, 'medicineId', e.target.value)}>
-              <option value="">Select...</option>
-              {medicines.map((m) => (
-                <option key={m.id} value={m.id}>{m.name} (stock: {m.quantity ?? 0}) — {formatINR(m.unitPrice)}</option>
-              ))}
-            </select>
-          </div>
-          <div className="form-group">
-            <label>Qty</label>
-            <input type="number" min="1" value={it.qty} onChange={(e) => updateItem(i, 'qty', e.target.value)} />
-          </div>
-        </div>
-      ))}
-      <button className="btn btn-outline btn-sm" onClick={() => setItems([...items, { medicineId: '', qty: 1 }])}>
-        + Add Item
-      </button>
       <div className="form-actions">
         <strong style={{ marginRight: 'auto' }}>Total: {formatINR(total)}</strong>
         <button className="btn btn-outline" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" onClick={handleSale} disabled={saving}>
-          {saving ? 'Saving...' : 'Complete Sale'}
+        <button className="btn btn-primary" onClick={handleDispense} disabled={saving}>
+          {saving ? 'Dispensing…' : 'Confirm Dispense'}
         </button>
       </div>
     </Modal>

@@ -1,7 +1,10 @@
+import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { usePermission } from '@hooks/usePermission'
 import { useFacility } from '@hooks/useFacility'
 import { useAuth } from '@hooks/useAuth'
+import { subscribeToCollection } from '@lib/db'
+import { pharmacyAlertCount } from '@lib/pharmacy'
 import { MODULE_LABELS } from '@lib/constants'
 import {
   LayoutDashboard, Users, Stethoscope, BedDouble, Pill,
@@ -39,10 +42,11 @@ export default function Sidebar({ collapsed, onToggle }) {
   const location = useLocation()
   const navigate = useNavigate()
   const { visibleModules } = usePermission()
-  const { facilityConfig } = useFacility()
+  const { facilityConfig, facilityId, isModuleEnabled } = useFacility()
   const { staffProfile } = useAuth()
 
   const modules = visibleModules()
+  const pharmacyAlerts = usePharmacyAlertBadge(facilityId, isModuleEnabled('pharmacy'))
 
   const isActive = (route) => {
     if (route === '/') return location.pathname === '/'
@@ -78,6 +82,9 @@ export default function Sidebar({ collapsed, onToggle }) {
             >
               <Icon size={20} />
               {!collapsed && <span>{MODULE_LABELS[mod]}</span>}
+              {mod === 'pharmacy' && pharmacyAlerts > 0 && (
+                <span className="sidebar-badge" title="Low stock / near expiry">{pharmacyAlerts}</span>
+              )}
             </button>
           )
         })}
@@ -88,4 +95,20 @@ export default function Sidebar({ collapsed, onToggle }) {
       </button>
     </aside>
   )
+}
+
+// Live count of low-stock + near-expiry pharmacy items for the nav badge.
+function usePharmacyAlertBadge(facilityId, enabled) {
+  const [count, setCount] = useState(0)
+  useEffect(() => {
+    if (!facilityId || !enabled) { setCount(0); return }
+    let medicines = [], batches = []
+    const recompute = () => setCount(pharmacyAlertCount(medicines, batches).total)
+    const unsubs = [
+      subscribeToCollection(`facilities/${facilityId}/pharmacy/medicines`, (d) => { medicines = d; recompute() }),
+      subscribeToCollection(`facilities/${facilityId}/pharmacy/batches`, (d) => { batches = d; recompute() }),
+    ]
+    return () => unsubs.forEach((fn) => fn())
+  }, [facilityId, enabled])
+  return count
 }

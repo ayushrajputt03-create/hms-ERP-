@@ -1,135 +1,104 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useAuth } from '@hooks/useAuth'
 import { useFacility } from '@hooks/useFacility'
 import { addDocument, updateDocument } from '@lib/db'
 import { formatINR, formatDate } from '@lib/utils'
+import { stockByMedicine, isNearExpiry, isExpired } from '@lib/pharmacy'
 import DataTable from '@components/DataTable'
 import Modal from '@components/Modal'
+import { useToast } from '@components/Toast'
 import { Plus, Edit, AlertTriangle, CalendarX } from 'lucide-react'
 
-const LOW_STOCK_DEFAULT = 10
-const EXPIRY_WINDOW_DAYS = 30
 const CATEGORIES = ['Tablet', 'Capsule', 'Syrup', 'Injection', 'Ointment', 'Drops', 'Other']
+const EMPTY = { name: '', category: 'Tablet', hsnCode: '', reorderThreshold: 10, sellingPrice: '' }
 
-const EMPTY_FORM = {
-  name: '', category: 'Tablet', batchNumber: '', expiryDate: '',
-  quantity: '', unitPrice: '', supplier: '', lowStockThreshold: LOW_STOCK_DEFAULT,
-}
-
-export default function InventoryTab({ medicines, canWrite }) {
+export default function InventoryTab({ medicines, batches, canWrite }) {
   const { user, staffProfile } = useAuth()
   const { facilityId } = useFacility()
+  const toast = useToast()
   const [modal, setModal] = useState(null)
-  const [form, setForm] = useState(EMPTY_FORM)
+  const [form, setForm] = useState(EMPTY)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
 
-  const openAdd = () => { setForm(EMPTY_FORM); setModal('add') }
-  const openEdit = (med) => {
+  const stock = useMemo(() => stockByMedicine(batches), [batches])
+  const medById = useMemo(() => Object.fromEntries(medicines.map((m) => [m.id, m])), [medicines])
+
+  // One row per batch, joined to its medicine master.
+  const rows = useMemo(() => batches.map((b) => {
+    const med = medById[b.medicineId] || {}
+    const medStock = stock[b.medicineId] || 0
+    return {
+      id: b.id,
+      name: med.name || b.medicineName || '—',
+      hsnCode: med.hsnCode || '—',
+      batchNumber: b.batchNumber || '—',
+      expiryDate: b.expiryDate,
+      quantity: Number(b.quantity) || 0,
+      sellingPrice: b.sellingPrice ?? med.sellingPrice,
+      lowStock: (Number(med.reorderThreshold) || 0) > 0 && medStock < Number(med.reorderThreshold),
+      nearExpiry: isNearExpiry(b.expiryDate),
+      expired: isExpired(b.expiryDate),
+    }
+  }).sort((a, b) => a.name.localeCompare(b.name)), [batches, medById, stock])
+
+  const openAdd = () => { setForm(EMPTY); setModal('add') }
+  const openEdit = (m) => {
     setForm({
-      name: med.name || '', category: med.category || 'Tablet',
-      batchNumber: med.batchNumber || '', expiryDate: med.expiryDate || '',
-      quantity: med.quantity ?? '', unitPrice: med.unitPrice ?? '',
-      supplier: med.supplier || '', lowStockThreshold: med.lowStockThreshold ?? LOW_STOCK_DEFAULT,
-      id: med.id,
+      name: m.name || '', category: m.category || 'Tablet', hsnCode: m.hsnCode || '',
+      reorderThreshold: m.reorderThreshold ?? 10, sellingPrice: m.sellingPrice ?? '', id: m.id,
     })
     setModal('edit')
   }
-
-  const update = (field) => (e) => setForm({ ...form, [field]: e.target.value })
+  const update = (f) => (e) => setForm({ ...form, [f]: e.target.value })
 
   const handleSave = async () => {
-    if (!form.name.trim()) { setError('Medicine name is required.'); return }
-    if (form.quantity === '' || isNaN(Number(form.quantity)) || Number(form.quantity) < 0) {
-      setError('Enter a valid quantity.'); return
-    }
-    if (form.unitPrice === '' || isNaN(Number(form.unitPrice)) || Number(form.unitPrice) < 0) {
-      setError('Enter a valid unit price.'); return
-    }
-
+    if (!form.name.trim()) { toast.error('Medicine name is required.'); return }
     setSaving(true)
-    setError('')
     try {
       const payload = {
-        name: form.name.trim(),
-        category: form.category,
-        batchNumber: form.batchNumber.trim() || null,
-        expiryDate: form.expiryDate || null,
-        quantity: Number(form.quantity),
-        unitPrice: Number(form.unitPrice),
-        supplier: form.supplier.trim() || null,
-        lowStockThreshold: Number(form.lowStockThreshold) || LOW_STOCK_DEFAULT,
+        name: form.name.trim(), category: form.category,
+        hsnCode: form.hsnCode.trim() || null,
+        reorderThreshold: Number(form.reorderThreshold) || 0,
+        sellingPrice: Number(form.sellingPrice) || 0,
       }
-      const auditOpts = {
-        user: staffProfile?.name || user?.email,
-        facilityId,
+      const opts = {
+        user: staffProfile?.name || user?.email, facilityId,
         audit: { action: modal === 'add' ? 'medicine_added' : 'medicine_updated', module: 'pharmacy' },
       }
-      if (modal === 'add') {
-        await addDocument(`facilities/${facilityId}/pharmacy/medicines`, payload, auditOpts)
-      } else {
-        await updateDocument(`facilities/${facilityId}/pharmacy/medicines/${form.id}`, payload, auditOpts)
-      }
+      if (modal === 'add') await addDocument(`facilities/${facilityId}/pharmacy/medicines`, payload, opts)
+      else await updateDocument(`facilities/${facilityId}/pharmacy/medicines/${form.id}`, payload, opts)
       setModal(null)
+      toast.success('Saved.')
     } catch (err) {
-      console.error('Medicine save error:', err)
-      setError('Failed to save medicine.')
-    } finally {
-      setSaving(false)
-    }
+      console.error(err); toast.error('Failed to save medicine.')
+    } finally { setSaving(false) }
   }
-
-  const isLowStock = (m) => (m.quantity ?? 0) < (m.lowStockThreshold ?? LOW_STOCK_DEFAULT)
-  const isExpiringSoon = (m) => {
-    if (!m.expiryDate) return false
-    const days = (new Date(m.expiryDate) - new Date()) / 86400000
-    return days >= 0 && days <= EXPIRY_WINDOW_DAYS
-  }
-  const isExpired = (m) => m.expiryDate && new Date(m.expiryDate) < new Date()
-
-  const lowStockCount = medicines.filter(isLowStock).length
-  const expiringCount = medicines.filter(isExpiringSoon).length
 
   const columns = [
     { header: 'Medicine', accessor: 'name' },
-    { header: 'Category', accessor: 'category' },
-    { header: 'Batch', cell: (m) => <span className="font-mono">{m.batchNumber || '—'}</span> },
+    { header: 'HSN', cell: (r) => <span className="font-mono">{r.hsnCode}</span> },
+    { header: 'Batch', cell: (r) => <span className="font-mono">{r.batchNumber}</span> },
     {
       header: 'Expiry',
-      cell: (m) => {
-        if (!m.expiryDate) return '—'
-        if (isExpired(m)) return <span className="badge badge-danger"><CalendarX size={11} /> Expired</span>
-        if (isExpiringSoon(m)) return <span className="badge badge-warning">{formatDate(m.expiryDate)}</span>
-        return formatDate(m.expiryDate)
+      cell: (r) => {
+        if (!r.expiryDate) return '—'
+        if (r.expired) return <span className="badge badge-danger"><CalendarX size={11} /> Expired</span>
+        if (r.nearExpiry) return <span className="badge badge-warning">{formatDate(r.expiryDate)}</span>
+        return formatDate(r.expiryDate)
       },
     },
     {
       header: 'Stock',
-      cell: (m) => isLowStock(m)
-        ? <span className="badge badge-danger"><AlertTriangle size={11} /> {m.quantity ?? 0}</span>
-        : (m.quantity ?? 0),
+      cell: (r) => r.lowStock
+        ? <span className="badge badge-danger"><AlertTriangle size={11} /> {r.quantity}</span>
+        : r.quantity,
     },
-    { header: 'Unit Price', cell: (m) => formatINR(m.unitPrice) },
-    { header: 'Supplier', cell: (m) => m.supplier || '—' },
-    ...(canWrite ? [{
-      header: '',
-      cell: (m) => (
-        <button className="btn btn-icon" onClick={(e) => { e.stopPropagation(); openEdit(m) }} title="Edit">
-          <Edit size={15} />
-        </button>
-      ),
-    }] : []),
+    { header: 'Unit Price', cell: (r) => formatINR(r.sellingPrice) },
   ]
 
   return (
     <div>
       <div className="pharmacy-alerts">
-        {lowStockCount > 0 && (
-          <span className="badge badge-danger"><AlertTriangle size={12} /> {lowStockCount} low stock</span>
-        )}
-        {expiringCount > 0 && (
-          <span className="badge badge-warning"><CalendarX size={12} /> {expiringCount} expiring within 30 days</span>
-        )}
         {canWrite && (
           <button className="btn btn-primary" style={{ marginLeft: 'auto' }} onClick={openAdd}>
             <Plus size={16} /> Add Medicine
@@ -137,15 +106,24 @@ export default function InventoryTab({ medicines, canWrite }) {
         )}
       </div>
 
+      {canWrite && medicines.length > 0 && (
+        <div className="medicine-master-chips">
+          {medicines.map((m) => (
+            <button key={m.id} className="master-chip" onClick={() => openEdit(m)} title="Edit medicine master">
+              <Edit size={11} /> {m.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       <DataTable
         columns={columns}
-        data={medicines}
-        searchPlaceholder="Search medicine, batch, supplier..."
-        emptyMessage="No medicines in inventory. Add your first medicine."
+        data={rows}
+        searchPlaceholder="Search medicine, batch, HSN…"
+        emptyMessage="No stock batches yet. Add a medicine, then add stock in the Stock-in tab."
       />
 
       <Modal isOpen={!!modal} onClose={() => setModal(null)} title={modal === 'add' ? 'Add Medicine' : 'Edit Medicine'} size="md">
-        {error && <div className="auth-error">{error}</div>}
         <div className="form-row">
           <div className="form-group">
             <label>Name *</label>
@@ -160,36 +138,22 @@ export default function InventoryTab({ medicines, canWrite }) {
         </div>
         <div className="form-row">
           <div className="form-group">
-            <label>Batch Number</label>
-            <input value={form.batchNumber} onChange={update('batchNumber')} placeholder="Batch" />
+            <label>HSN Code</label>
+            <input value={form.hsnCode} onChange={update('hsnCode')} placeholder="e.g. 3004" />
           </div>
           <div className="form-group">
-            <label>Expiry Date</label>
-            <input type="date" value={form.expiryDate} onChange={update('expiryDate')} />
-          </div>
-        </div>
-        <div className="form-row">
-          <div className="form-group">
-            <label>Quantity *</label>
-            <input type="number" min="0" value={form.quantity} onChange={update('quantity')} placeholder="0" />
+            <label>Reorder Threshold</label>
+            <input type="number" min="0" value={form.reorderThreshold} onChange={update('reorderThreshold')} />
           </div>
           <div className="form-group">
-            <label>Unit Price (₹) *</label>
-            <input type="number" min="0" step="0.01" value={form.unitPrice} onChange={update('unitPrice')} placeholder="0.00" />
+            <label>Default Selling Price (₹)</label>
+            <input type="number" min="0" step="0.01" value={form.sellingPrice} onChange={update('sellingPrice')} />
           </div>
-          <div className="form-group">
-            <label>Low Stock Alert At</label>
-            <input type="number" min="0" value={form.lowStockThreshold} onChange={update('lowStockThreshold')} />
-          </div>
-        </div>
-        <div className="form-group">
-          <label>Supplier</label>
-          <input value={form.supplier} onChange={update('supplier')} placeholder="Supplier name" />
         </div>
         <div className="form-actions">
           <button className="btn btn-outline" onClick={() => setModal(null)}>Cancel</button>
           <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving...' : 'Save Medicine'}
+            {saving ? 'Saving…' : 'Save Medicine'}
           </button>
         </div>
       </Modal>

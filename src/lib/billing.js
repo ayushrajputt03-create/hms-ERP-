@@ -51,9 +51,25 @@ async function ipdSource(facilityId, patientId) {
     })
 }
 
-// Extensible: add pharmacySource / labSource here later — the bill builder
-// consumes every source uniformly by { key, source, description, amount }.
-const PENDING_SOURCES = [opdSource, ipdSource]
+async function pharmacySource(facilityId, patientId) {
+  const sales = await queryDocuments(`facilities/${facilityId}/pharmacy/sales`, {
+    orderBy: 'patientId', equalTo: patientId,
+  })
+  return sales
+    .filter((s) => s.type === 'prescription' && s.billed !== true)
+    .map((s) => ({
+      key: `pharmacy:${s.id}`,
+      source: 'pharmacy',
+      saleId: s.id,
+      description: `Pharmacy — ${(s.items || []).map((i) => `${i.name} ×${i.quantity}`).join(', ')}`,
+      amount: Number(s.total) || 0,
+      date: s.saleDate || s.createdAt,
+    }))
+}
+
+// Extensible: add labSource here later — the bill builder consumes every source
+// uniformly by { key, source, description, amount }.
+const PENDING_SOURCES = [opdSource, ipdSource, pharmacySource]
 
 export async function getPendingItems(facilityId, patientId) {
   if (!facilityId || !patientId) return []
@@ -73,13 +89,14 @@ export function computeTotals({ items, gstEnabled, gstRate = DEFAULT_GST_RATE, d
 // Bills any mix of OPD visits and discharged IPD admissions into one invoice,
 // flipping each source's billed flag in the same transaction.
 export async function createInvoice({
-  visitIds = [], admissionIds = [], lineItems,
+  visitIds = [], admissionIds = [], saleIds = [], lineItems,
   subtotal, gstAmount, discount, discountReason, total, paymentMode, insurance,
 }) {
   if (!supabase) throw new Error('Supabase not configured')
   const { data, error } = await supabase.rpc('create_invoice', {
     p_visit_ids: visitIds,
     p_admission_ids: admissionIds,
+    p_sale_ids: saleIds,
     p_line_items: lineItems,
     p_subtotal: subtotal,
     p_gst_amount: gstAmount,

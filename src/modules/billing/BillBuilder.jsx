@@ -114,6 +114,7 @@ export default function BillBuilder() {
       const invoiceId = await createInvoice({
         visitIds: selectedItems.filter((i) => i.source === 'opd').map((i) => i.visitId),
         admissionIds: selectedItems.filter((i) => i.source === 'ipd').map((i) => i.admissionId),
+        saleIds: selectedItems.filter((i) => i.source === 'pharmacy').map((i) => i.saleId),
         lineItems,
         subtotal,
         gstAmount,
