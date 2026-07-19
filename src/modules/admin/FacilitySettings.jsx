@@ -157,11 +157,24 @@ export default function FacilitySettings() {
             </label>
           </div>
           {form.gstEnabled && (
-            <div className="form-group">
-              <label>GSTIN</label>
-              <input value={form.gstin || ''} onChange={update('gstin')} placeholder="GST Number" />
+            <div className="form-row">
+              <div className="form-group">
+                <label>GSTIN</label>
+                <input value={form.gstin || ''} onChange={update('gstin')} placeholder="GST Number" />
+              </div>
+              <div className="form-group">
+                <label>GST Rate (%)</label>
+                <input type="number" min="0" max="28" value={form.gstRate ?? 18} onChange={update('gstRate')} />
+              </div>
             </div>
           )}
+          <div className="form-group">
+            <label className="checkbox-label">
+              <input type="checkbox" checked={form.tpaEnabled || false} onChange={update('tpaEnabled')} />
+              Enable Insurance / TPA claims
+            </label>
+            <span className="settings-hint">Adds a "TPA Claims" tab in Billing to track insurance claims.</span>
+          </div>
           <div className="form-row">
             <div className="form-group">
               <label>UHID Prefix</label>
