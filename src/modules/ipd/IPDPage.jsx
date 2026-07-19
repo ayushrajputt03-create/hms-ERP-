@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@hooks/useAuth'
 import { useFacility } from '@hooks/useFacility'
 import { usePermission } from '@hooks/usePermission'
-import { subscribeToCollection } from '@lib/db'
+import { subscribeToCollection, updateDocument } from '@lib/db'
 import { formatDate } from '@lib/utils'
+import { useToast } from '@components/Toast'
 import BedBoard from './BedBoard'
 import WardsSetup from './WardsSetup'
 import { BedDouble, LayoutGrid, ClipboardList, Settings, Plus } from 'lucide-react'
@@ -14,6 +15,7 @@ export default function IPDPage() {
   const { staffProfile } = useAuth()
   const { facilityId } = useFacility()
   const { can } = usePermission()
+  const toast = useToast()
   const [tab, setTab] = useState('beds')
   const [wards, setWards] = useState([])
   const [admissions, setAdmissions] = useState([])
@@ -36,6 +38,17 @@ export default function IPDPage() {
   const activeAdmissions = admissions.filter((a) => a.status === 'admitted')
   const isAdmin = ['facility_admin', 'super_admin'].includes(staffProfile?.role)
   const canAdmit = can('ipd', 'create')
+  const canClean = can('ipd', 'update')
+
+  const markBedClean = async (wardId, bedId, bedName) => {
+    try {
+      await updateDocument(`facilities/${facilityId}/ipd/wards/${wardId}/beds/${bedId}`, { status: 'vacant' })
+      toast.success(`Bed ${bedName || ''} marked available.`)
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to update bed.')
+    }
+  }
 
   return (
     <div>
@@ -73,7 +86,11 @@ export default function IPDPage() {
             <BedBoard
               wards={wards}
               admissions={activeAdmissions}
-              onBedClick={(admissionId) => navigate(`/ipd/admission/${admissionId}`)}
+              canAdmit={canAdmit}
+              canClean={canClean}
+              onOpenAdmission={(admissionId) => navigate(`/ipd/admission/${admissionId}`)}
+              onAdmit={(wardId, bedId) => navigate(`/ipd/admit?wardId=${wardId}&bedId=${bedId}`)}
+              onClean={markBedClean}
             />
           )}
           {tab === 'admissions' && (

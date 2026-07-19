@@ -6,10 +6,14 @@ import { usePermission } from '@hooks/usePermission'
 import {
   subscribeToDocument, subscribeToCollection, addDocument, updateDocument,
 } from '@lib/db'
+import { dischargePatient, administerDose } from '@lib/ipd'
+import { canBill } from '@lib/billing'
 import { formatDate, formatINR } from '@lib/utils'
+import { useToast } from '@components/Toast'
 import Modal from '@components/Modal'
 import {
-  ChevronLeft, BedDouble, NotebookPen, ArrowRightLeft, LogOut, Send,
+  ChevronLeft, BedDouble, NotebookPen, Pill, ArrowRightLeft, LogOut, Send,
+  Plus, CheckCircle2, Check,
 } from 'lucide-react'
 
 export default function AdmissionDetail() {
@@ -18,10 +22,15 @@ export default function AdmissionDetail() {
   const { user, staffProfile } = useAuth()
   const { facilityId } = useFacility()
   const { can } = usePermission()
+  const toast = useToast()
+  const role = staffProfile?.role
 
   const [admission, setAdmission] = useState(null)
   const [notes, setNotes] = useState([])
+  const [doses, setDoses] = useState([])
+  const [staff, setStaff] = useState([])
   const [wards, setWards] = useState([])
+  const [tab, setTab] = useState('notes')
   const [noteText, setNoteText] = useState('')
   const [savingNote, setSavingNote] = useState(false)
   const [transferModal, setTransferModal] = useState(false)
@@ -29,15 +38,20 @@ export default function AdmissionDetail() {
 
   useEffect(() => {
     if (!facilityId || !admissionId) return
+    const base = `facilities/${facilityId}/ipd/admissions/${admissionId}`
     const unsubs = [
-      subscribeToDocument(`facilities/${facilityId}/ipd/admissions/${admissionId}`, setAdmission),
-      subscribeToCollection(`facilities/${facilityId}/ipd/admissions/${admissionId}/progressNotes`, (data) => {
-        setNotes(data.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)))
-      }),
+      subscribeToDocument(base, setAdmission),
+      subscribeToCollection(`${base}/progressNotes`, (data) =>
+        setNotes(data.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)))),
+      subscribeToCollection(`${base}/mar`, (data) =>
+        setDoses(data.sort((a, b) => (a.scheduledTime || 0) - (b.scheduledTime || 0)))),
       subscribeToCollection(`facilities/${facilityId}/ipd/wards`, setWards),
+      subscribeToCollection(`facilities/${facilityId}/staff`, setStaff),
     ]
     return () => unsubs.forEach((fn) => fn())
   }, [facilityId, admissionId])
+
+  const staffName = (uid) => staff.find((s) => s.id === uid)?.name || 'staff'
 
   const addNote = async () => {
     if (!noteText.trim()) return
@@ -51,16 +65,28 @@ export default function AdmissionDetail() {
       setNoteText('')
     } catch (err) {
       console.error('Note error:', err)
+      toast.error('Failed to add note.')
     } finally {
       setSavingNote(false)
+    }
+  }
+
+  const markAdministered = async (doseId) => {
+    try {
+      await administerDose({ admissionId, doseId })
+    } catch (err) {
+      console.error('MAR error:', err)
+      toast.error(err.message || 'Failed to record dose.')
     }
   }
 
   if (!admission) return <div className="empty-state">Loading admission...</div>
 
   const isActive = admission.status === 'admitted'
-  const days = Math.max(1, Math.ceil((Date.now() - (admission.admissionDate || Date.now())) / 86400000))
+  const days = admission.stayDays
+    || Math.max(1, Math.ceil((Date.now() - (admission.admissionDate || Date.now())) / 86400000))
   const canUpdate = can('ipd', 'update')
+  const canDischarge = ['facility_admin', 'super_admin', 'doctor', 'receptionist'].includes(role)
 
   return (
     <div>
@@ -70,14 +96,18 @@ export default function AdmissionDetail() {
           <BedDouble size={22} /> {admission.patientName}
           <span className={`badge ${isActive ? 'badge-warning' : 'badge-success'}`}>{admission.status}</span>
         </h2>
-        {isActive && canUpdate && (
+        {isActive && (
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button className="btn btn-outline" onClick={() => setTransferModal(true)}>
-              <ArrowRightLeft size={14} /> Transfer
-            </button>
-            <button className="btn btn-primary" onClick={() => setDischargeModal(true)}>
-              <LogOut size={14} /> Discharge
-            </button>
+            {canUpdate && (
+              <button className="btn btn-outline" onClick={() => setTransferModal(true)}>
+                <ArrowRightLeft size={14} /> Transfer
+              </button>
+            )}
+            {canDischarge && (
+              <button className="btn btn-primary" onClick={() => setDischargeModal(true)}>
+                <LogOut size={14} /> Discharge
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -96,75 +126,166 @@ export default function AdmissionDetail() {
       </div>
 
       {admission.diagnosis && (
-        <div className="conditions-bar">
-          <strong>Diagnosis:</strong> {admission.diagnosis}
-        </div>
+        <div className="conditions-bar"><strong>Diagnosis:</strong> {admission.diagnosis}</div>
       )}
 
       {admission.status === 'discharged' && admission.dischargeSummary && (
         <div className="settings-section" style={{ marginBottom: '1rem' }}>
           <h3 style={{ marginBottom: '0.5rem' }}>Discharge Summary</h3>
-          <p><strong>Final Diagnosis:</strong> {admission.dischargeSummary.finalDiagnosis}</p>
-          <p><strong>Treatment Given:</strong> {admission.dischargeSummary.treatment}</p>
-          {admission.dischargeSummary.medicines && <p><strong>Medicines on Discharge:</strong> {admission.dischargeSummary.medicines}</p>}
-          {admission.dischargeSummary.followUp && <p><strong>Follow-up:</strong> {admission.dischargeSummary.followUp}</p>}
+          <p style={{ whiteSpace: 'pre-wrap' }}>{admission.dischargeSummary}</p>
         </div>
       )}
 
-      <div className="settings-section">
-        <h3 style={{ marginBottom: '0.75rem' }}><NotebookPen size={16} /> Daily Progress Notes</h3>
-
-        {isActive && canUpdate && (
-          <div className="note-input-row">
-            <textarea
-              value={noteText}
-              onChange={(e) => setNoteText(e.target.value)}
-              placeholder="Add progress note (vitals, observations, treatment updates)..."
-              rows={2}
-            />
-            <button className="btn btn-primary" onClick={addNote} disabled={savingNote || !noteText.trim()}>
-              <Send size={14} /> {savingNote ? 'Adding...' : 'Add'}
-            </button>
-          </div>
-        )}
-
-        {notes.length === 0 ? (
-          <p className="text-muted">No progress notes yet.</p>
-        ) : (
-          <div className="notes-list">
-            {notes.map((n) => (
-              <div key={n.id} className="note-item">
-                <div className="note-meta">
-                  <strong>{n.author}</strong>
-                  {n.authorRole && <span className="badge badge-muted">{n.authorRole.replace('_', ' ')}</span>}
-                  <span className="text-muted">{formatDate(n.createdAt, 'datetime')}</span>
-                </div>
-                <p>{n.text}</p>
-              </div>
-            ))}
-          </div>
-        )}
+      <div className="tabs">
+        <button className={`tab ${tab === 'notes' ? 'active' : ''}`} onClick={() => setTab('notes')}>
+          <NotebookPen size={15} /> Progress Notes
+        </button>
+        <button className={`tab ${tab === 'mar' ? 'active' : ''}`} onClick={() => setTab('mar')}>
+          <Pill size={15} /> Medication (MAR)
+        </button>
       </div>
+
+      {tab === 'notes' && (
+        <div className="settings-section">
+          {isActive && canUpdate && (
+            <div className="note-input-row">
+              <textarea
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                placeholder="Add progress note (vitals, observations, treatment updates)..."
+                rows={2}
+              />
+              <button className="btn btn-primary" onClick={addNote} disabled={savingNote || !noteText.trim()}>
+                <Send size={14} /> {savingNote ? 'Adding...' : 'Add'}
+              </button>
+            </div>
+          )}
+          {/* Notes are append-only — there is intentionally no edit or delete. */}
+          {notes.length === 0 ? (
+            <p className="text-muted">No progress notes yet.</p>
+          ) : (
+            <div className="notes-list">
+              {notes.map((n) => (
+                <div key={n.id} className="note-item">
+                  <div className="note-meta">
+                    <strong>{n.author}</strong>
+                    {n.authorRole && <span className="badge badge-muted">{n.authorRole.replace('_', ' ')}</span>}
+                    <span className="text-muted">{formatDate(n.createdAt, 'datetime')}</span>
+                  </div>
+                  <p>{n.text}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === 'mar' && (
+        <MarTab
+          doses={doses}
+          isActive={isActive}
+          canUpdate={canUpdate}
+          facilityId={facilityId}
+          admissionId={admissionId}
+          onAdminister={markAdministered}
+          staffName={staffName}
+        />
+      )}
 
       {transferModal && (
         <TransferModal
-          admission={admission}
-          wards={wards}
-          onClose={() => setTransferModal(false)}
-          facilityId={facilityId}
-          performedBy={staffProfile?.name || user?.email}
+          admission={admission} wards={wards} onClose={() => setTransferModal(false)}
+          facilityId={facilityId} performedBy={staffProfile?.name || user?.email}
         />
       )}
 
       {dischargeModal && (
         <DischargeModal
-          admission={admission}
-          days={days}
-          onClose={() => setDischargeModal(false)}
-          facilityId={facilityId}
-          performedBy={staffProfile?.name || user?.email}
-          onDischarged={() => navigate('/ipd')}
+          admission={admission} days={days} onClose={() => setDischargeModal(false)}
+          onDischarged={() => {
+            if (canBill(role)) {
+              toast.success('Patient discharged. Room charges are ready to bill.')
+              navigate(`/billing?patientId=${admission.patientId}`)
+            } else {
+              toast.success('Patient discharged. Room charges are queued in Billing.')
+              navigate('/ipd')
+            }
+          }}
         />
+      )}
+    </div>
+  )
+}
+
+function MarTab({ doses, isActive, canUpdate, facilityId, admissionId, onAdminister, staffName }) {
+  const [form, setForm] = useState({ medicine: '', dosage: '', scheduledTime: '' })
+  const [saving, setSaving] = useState(false)
+
+  const addDose = async () => {
+    if (!form.medicine.trim()) return
+    setSaving(true)
+    try {
+      await addDocument(`facilities/${facilityId}/ipd/admissions/${admissionId}/mar`, {
+        medicine: form.medicine.trim(),
+        dosage: form.dosage.trim() || null,
+        scheduledTime: form.scheduledTime ? new Date(form.scheduledTime).getTime() : Date.now(),
+        administered: false,
+      })
+      setForm({ medicine: '', dosage: '', scheduledTime: '' })
+    } catch (err) {
+      console.error('Add dose error:', err)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="settings-section">
+      {isActive && canUpdate && (
+        <div className="form-row" style={{ alignItems: 'flex-end', marginBottom: '1rem' }}>
+          <div className="form-group" style={{ flex: 2 }}>
+            <label>Medicine</label>
+            <input value={form.medicine} onChange={(e) => setForm({ ...form, medicine: e.target.value })} placeholder="e.g. Ceftriaxone" />
+          </div>
+          <div className="form-group">
+            <label>Dosage</label>
+            <input value={form.dosage} onChange={(e) => setForm({ ...form, dosage: e.target.value })} placeholder="1g IV" />
+          </div>
+          <div className="form-group">
+            <label>Scheduled</label>
+            <input type="datetime-local" value={form.scheduledTime} onChange={(e) => setForm({ ...form, scheduledTime: e.target.value })} />
+          </div>
+          <button className="btn btn-outline" onClick={addDose} disabled={saving || !form.medicine.trim()} style={{ marginBottom: '1rem' }}>
+            <Plus size={14} /> Add Dose
+          </button>
+        </div>
+      )}
+
+      {doses.length === 0 ? (
+        <p className="text-muted">No scheduled doses.</p>
+      ) : (
+        <div className="mar-list">
+          {doses.map((d) => (
+            <div key={d.id} className={`mar-row ${d.administered ? 'mar-done' : ''}`}>
+              <div className="mar-info">
+                <strong>{d.medicine}</strong>{d.dosage ? ` — ${d.dosage}` : ''}
+                <span className="text-muted"> · scheduled {formatDate(d.scheduledTime, 'datetime')}</span>
+              </div>
+              {d.administered ? (
+                <div className="mar-given">
+                  <CheckCircle2 size={15} />
+                  <span>Given by {staffName(d.administeredBy)} · {formatDate(d.administeredAt, 'datetime')}</span>
+                </div>
+              ) : isActive && canUpdate ? (
+                <button className="btn btn-primary btn-sm" onClick={() => onAdminister(d.id)}>
+                  <Check size={14} /> Mark given
+                </button>
+              ) : (
+                <span className="badge badge-muted">Pending</span>
+              )}
+            </div>
+          ))}
+        </div>
       )}
     </div>
   )
@@ -176,18 +297,18 @@ function TransferModal({ admission, wards, onClose, facilityId, performedBy }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  const isAvailable = (b) => !b.status || b.status === 'vacant'
   const selectedWard = wards.find((w) => w.id === wardId)
   const vacantBeds = selectedWard
-    ? Object.entries(selectedWard.beds || {}).filter(([, b]) => b.status !== 'occupied').map(([id, b]) => ({ id, ...b }))
+    ? Object.entries(selectedWard.beds || {}).filter(([, b]) => isAvailable(b)).map(([id, b]) => ({ id, ...b }))
     : []
 
   const handleTransfer = async () => {
-    if (!wardId || !bedId) { setError('Select a ward and vacant bed.'); return }
+    if (!wardId || !bedId) { setError('Select a ward and available bed.'); return }
     setSaving(true)
     setError('')
     try {
       const bed = vacantBeds.find((b) => b.id === bedId)
-
       await updateDocument(`facilities/${facilityId}/ipd/wards/${admission.wardId}/beds/${admission.bedId}`, {
         status: 'vacant', admissionId: null,
       })
@@ -195,19 +316,14 @@ function TransferModal({ admission, wards, onClose, facilityId, performedBy }) {
         status: 'occupied', admissionId: admission.id,
       })
       await updateDocument(`facilities/${facilityId}/ipd/admissions/${admission.id}`, {
-        wardId,
-        wardName: selectedWard?.name || '',
-        bedId,
-        bedName: bed?.name || '',
+        wardId, wardName: selectedWard?.name || '', bedId, bedName: bed?.name || '',
         ratePerDay: selectedWard?.ratePerDay ?? admission.ratePerDay,
       }, {
-        user: performedBy, facilityId,
-        audit: { action: 'patient_transferred', module: 'ipd' },
+        user: performedBy, facilityId, audit: { action: 'patient_transferred', module: 'ipd' },
       })
       await addDocument(`facilities/${facilityId}/ipd/admissions/${admission.id}/progressNotes`, {
         text: `Transferred from ${admission.wardName}/${admission.bedName} to ${selectedWard?.name}/${bed?.name}.`,
-        author: performedBy,
-        authorRole: 'system',
+        author: performedBy, authorRole: 'system',
       })
       onClose()
     } catch (err) {
@@ -229,8 +345,8 @@ function TransferModal({ admission, wards, onClose, facilityId, performedBy }) {
         <select value={wardId} onChange={(e) => { setWardId(e.target.value); setBedId('') }}>
           <option value="">Select ward...</option>
           {wards.map((w) => {
-            const vacant = Object.values(w.beds || {}).filter((b) => b.status !== 'occupied').length
-            return <option key={w.id} value={w.id} disabled={vacant === 0}>{w.name} ({vacant} vacant)</option>
+            const vacant = Object.values(w.beds || {}).filter(isAvailable).length
+            return <option key={w.id} value={w.id} disabled={vacant === 0}>{w.name} ({vacant} available)</option>
           })}
         </select>
       </div>
@@ -251,57 +367,24 @@ function TransferModal({ admission, wards, onClose, facilityId, performedBy }) {
   )
 }
 
-function DischargeModal({ admission, days, onClose, facilityId, performedBy, onDischarged }) {
-  const [form, setForm] = useState({ finalDiagnosis: admission.diagnosis || '', treatment: '', medicines: '', followUp: '' })
+function DischargeModal({ admission, days, onClose, onDischarged }) {
+  const [summary, setSummary] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   const bedCharges = days * (admission.ratePerDay || 0)
-  const update = (field) => (e) => setForm({ ...form, [field]: e.target.value })
 
   const handleDischarge = async () => {
-    if (!form.finalDiagnosis.trim()) { setError('Final diagnosis is required.'); return }
-    if (!form.treatment.trim()) { setError('Treatment summary is required.'); return }
-
+    if (!summary.trim()) { setError('A discharge summary is required.'); return }
     setSaving(true)
     setError('')
     try {
-      await updateDocument(`facilities/${facilityId}/ipd/admissions/${admission.id}`, {
-        status: 'discharged',
-        dischargedAt: Date.now(),
-        stayDays: days,
-        dischargeSummary: {
-          finalDiagnosis: form.finalDiagnosis.trim(),
-          treatment: form.treatment.trim(),
-          medicines: form.medicines.trim() || null,
-          followUp: form.followUp.trim() || null,
-        },
-      }, {
-        user: performedBy, facilityId,
-        audit: { action: 'patient_discharged', module: 'ipd' },
-      })
-
-      await updateDocument(`facilities/${facilityId}/ipd/wards/${admission.wardId}/beds/${admission.bedId}`, {
-        status: 'vacant', admissionId: null,
-      })
-
-      await addDocument(`facilities/${facilityId}/billing`, {
-        patientId: admission.patientId,
-        patientName: admission.patientName,
-        patientUhid: admission.patientUhid,
-        type: 'ipd_bed_charges',
-        description: `IPD Bed Charges — ${admission.wardName}/${admission.bedName} × ${days} day${days !== 1 ? 's' : ''} @ ${formatINR(admission.ratePerDay || 0)}/day`,
-        amount: bedCharges,
-        status: 'pending',
-        admissionId: admission.id,
-        invoiceDate: Date.now(),
-        facilityId,
-      })
-
+      // Atomic: writes summary, computes stay days, flips the bed to 'cleaning'.
+      await dischargePatient({ admissionId: admission.id, summary: summary.trim() })
       onDischarged()
     } catch (err) {
       console.error('Discharge error:', err)
-      setError('Discharge failed. Please retry.')
+      setError(err.message || 'Discharge failed. Please retry.')
       setSaving(false)
     }
   }
@@ -310,24 +393,18 @@ function DischargeModal({ admission, days, onClose, facilityId, performedBy, onD
     <Modal isOpen onClose={onClose} title="Discharge Patient" size="md">
       {error && <div className="auth-error">{error}</div>}
       <p className="text-muted" style={{ marginBottom: '0.75rem' }}>
-        Stay: {days} day{days !== 1 ? 's' : ''} — Bed charges {formatINR(bedCharges)} will be added to billing.
-        {admission.deposit > 0 && ` Deposit paid: ${formatINR(admission.deposit)}.`}
+        Stay: {days} day{days !== 1 ? 's' : ''} — Room charges {formatINR(bedCharges)} will be queued in Billing
+        ({admission.wardName}/{admission.bedName} @ {formatINR(admission.ratePerDay || 0)}/day). The bed is set to
+        "cleaning" on discharge.
       </p>
       <div className="form-group">
-        <label>Final Diagnosis *</label>
-        <textarea value={form.finalDiagnosis} onChange={update('finalDiagnosis')} rows={2} />
-      </div>
-      <div className="form-group">
-        <label>Treatment Given *</label>
-        <textarea value={form.treatment} onChange={update('treatment')} rows={2} />
-      </div>
-      <div className="form-group">
-        <label>Medicines on Discharge</label>
-        <textarea value={form.medicines} onChange={update('medicines')} rows={2} />
-      </div>
-      <div className="form-group">
-        <label>Follow-up Instructions</label>
-        <textarea value={form.followUp} onChange={update('followUp')} rows={2} />
+        <label>Discharge Summary *</label>
+        <textarea
+          value={summary}
+          onChange={(e) => setSummary(e.target.value)}
+          rows={5}
+          placeholder="Final diagnosis, treatment given, medicines on discharge, follow-up instructions…"
+        />
       </div>
       <div className="form-actions">
         <button className="btn btn-outline" onClick={onClose}>Cancel</button>

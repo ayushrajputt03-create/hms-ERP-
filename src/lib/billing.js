@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import { queryDocuments } from './db'
+import { formatINR } from './utils'
 
 // Fallback consultation fee if a visit has no stored fee / no tariff configured.
 export const CONSULT_FALLBACK = 500
@@ -19,6 +20,7 @@ async function opdSource(facilityId, patientId) {
   return visits
     .filter((v) => v.status === 'completed' && v.billed !== true)
     .map((v) => ({
+      key: `opd:${v.id}`,
       source: 'opd',
       visitId: v.id,
       description: `OPD Consultation${v.doctorName ? ' — Dr. ' + v.doctorName : ''}`
@@ -28,8 +30,30 @@ async function opdSource(facilityId, patientId) {
     }))
 }
 
-const PENDING_SOURCES = [opdSource]
-// Future: const PENDING_SOURCES = [opdSource, ipdSource, pharmacySource, labSource]
+async function ipdSource(facilityId, patientId) {
+  const admissions = await queryDocuments(`facilities/${facilityId}/ipd/admissions`, {
+    orderBy: 'patientId', equalTo: patientId,
+  })
+  return admissions
+    .filter((a) => a.status === 'discharged' && a.billed !== true)
+    .map((a) => {
+      const days = a.stayDays || 1
+      const rate = Number(a.ratePerDay) || 0
+      return {
+        key: `ipd:${a.id}`,
+        source: 'ipd',
+        admissionId: a.id,
+        description: `IPD Room Charges — ${a.wardName || 'Ward'}/${a.bedName || ''} `
+          + `(${days} day${days !== 1 ? 's' : ''} × ${formatINR(rate)})`,
+        amount: days * rate,
+        date: a.dischargedAt || a.admissionDate,
+      }
+    })
+}
+
+// Extensible: add pharmacySource / labSource here later — the bill builder
+// consumes every source uniformly by { key, source, description, amount }.
+const PENDING_SOURCES = [opdSource, ipdSource]
 
 export async function getPendingItems(facilityId, patientId) {
   if (!facilityId || !patientId) return []
@@ -46,12 +70,16 @@ export function computeTotals({ items, gstEnabled, gstRate = DEFAULT_GST_RATE, d
 }
 
 // ---- Invoice creation (atomic, race-safe RPC) -------------------------------
-export async function createInvoiceFromVisits({
-  visitIds, lineItems, subtotal, gstAmount, discount, discountReason, total, paymentMode, insurance,
+// Bills any mix of OPD visits and discharged IPD admissions into one invoice,
+// flipping each source's billed flag in the same transaction.
+export async function createInvoice({
+  visitIds = [], admissionIds = [], lineItems,
+  subtotal, gstAmount, discount, discountReason, total, paymentMode, insurance,
 }) {
   if (!supabase) throw new Error('Supabase not configured')
-  const { data, error } = await supabase.rpc('create_invoice_from_opd_visits', {
+  const { data, error } = await supabase.rpc('create_invoice', {
     p_visit_ids: visitIds,
+    p_admission_ids: admissionIds,
     p_line_items: lineItems,
     p_subtotal: subtotal,
     p_gst_amount: gstAmount,

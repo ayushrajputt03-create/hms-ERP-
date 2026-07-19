@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@hooks/useAuth'
 import { useFacility } from '@hooks/useFacility'
 import { subscribeToCollection } from '@lib/db'
 import {
-  getPendingItems, computeTotals, createInvoiceFromVisits,
+  getPendingItems, computeTotals, createInvoice,
   PAYMENT_MODES, PAYMENT_MODE_LABELS, DEFAULT_GST_RATE,
 } from '@lib/billing'
 import { formatINR, formatDate } from '@lib/utils'
@@ -15,6 +15,9 @@ import {
 
 export default function BillBuilder() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const prefillPatientId = searchParams.get('patientId')
+  const prefilledRef = useRef(false)
   const { facilityId, facilityConfig } = useFacility()
   const toast = useToast()
 
@@ -23,7 +26,7 @@ export default function BillBuilder() {
   const [patient, setPatient] = useState(null)
 
   const [pending, setPending] = useState([])
-  const [selected, setSelected] = useState({}) // visitId -> bool
+  const [selected, setSelected] = useState({}) // item.key -> bool
   const [manualItems, setManualItems] = useState([])
   const [loadingPending, setLoadingPending] = useState(false)
 
@@ -43,6 +46,13 @@ export default function BillBuilder() {
     })
   }, [facilityId])
 
+  // Auto-select the patient handed off from a discharge (?patientId=…).
+  useEffect(() => {
+    if (prefilledRef.current || !prefillPatientId || patients.length === 0) return
+    const p = patients.find((x) => x.id === prefillPatientId)
+    if (p) { prefilledRef.current = true; selectPatient(p) }
+  }, [prefillPatientId, patients]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const matches = useMemo(() => {
     if (!search.trim()) return []
     const q = search.toLowerCase()
@@ -60,7 +70,7 @@ export default function BillBuilder() {
     try {
       const items = await getPendingItems(facilityId, p.id)
       setPending(items)
-      setSelected(Object.fromEntries(items.map((i) => [i.visitId, true])))
+      setSelected(Object.fromEntries(items.map((i) => [i.key, true])))
     } catch (err) {
       console.error(err)
       toast.error('Failed to load pending items.')
@@ -69,11 +79,11 @@ export default function BillBuilder() {
     }
   }
 
-  const selectedVisits = pending.filter((i) => selected[i.visitId])
+  const selectedItems = pending.filter((i) => selected[i.key])
   const validManual = manualItems.filter((m) => m.description.trim() && Number(m.amount) > 0)
 
   const lineItems = [
-    ...selectedVisits.map((v) => ({ description: v.description, source: v.source, amount: v.amount })),
+    ...selectedItems.map((v) => ({ description: v.description, source: v.source, amount: v.amount })),
     ...validManual.map((m) => ({ description: m.description.trim(), source: 'manual', amount: Number(m.amount) })),
   ]
 
@@ -88,8 +98,8 @@ export default function BillBuilder() {
   const removeManual = (i) => setManualItems(manualItems.filter((_, idx) => idx !== i))
 
   const handleGenerate = async () => {
-    if (selectedVisits.length === 0) {
-      toast.error('Select at least one OPD visit to bill.')
+    if (selectedItems.length === 0) {
+      toast.error('Select at least one billable item.')
       return
     }
     if (discountInvalid) {
@@ -101,8 +111,9 @@ export default function BillBuilder() {
       const insurance = paymentMode === 'insurance'
         ? { tpaName: tpaName.trim() || 'Unspecified', status: 'submitted', notes: '' }
         : null
-      const invoiceId = await createInvoiceFromVisits({
-        visitIds: selectedVisits.map((v) => v.visitId),
+      const invoiceId = await createInvoice({
+        visitIds: selectedItems.filter((i) => i.source === 'opd').map((i) => i.visitId),
+        admissionIds: selectedItems.filter((i) => i.source === 'ipd').map((i) => i.admissionId),
         lineItems,
         subtotal,
         gstAmount,
@@ -174,21 +185,25 @@ export default function BillBuilder() {
               </button>
             </div>
 
-            <h4 style={{ margin: '1rem 0 0.5rem' }}>Un-billed OPD Visits</h4>
+            <h4 style={{ margin: '1rem 0 0.5rem' }}>Un-billed Items</h4>
             {loadingPending ? (
               <p className="text-muted"><Loader size={14} className="loading-icon" /> Loading…</p>
             ) : pending.length === 0 ? (
-              <p className="text-muted">No un-billed OPD visits for this patient. Add manual items below, or bill after a consultation is completed.</p>
+              <p className="text-muted">No un-billed OPD visits or IPD stays for this patient. Add manual items below, or bill after a consultation/discharge.</p>
             ) : (
               <div className="test-checklist">
                 {pending.map((v) => (
-                  <label key={v.visitId} className="checkbox-label test-check-item">
+                  <label key={v.key} className="checkbox-label test-check-item">
                     <input
                       type="checkbox"
-                      checked={!!selected[v.visitId]}
-                      onChange={() => setSelected({ ...selected, [v.visitId]: !selected[v.visitId] })}
+                      checked={!!selected[v.key]}
+                      onChange={() => setSelected({ ...selected, [v.key]: !selected[v.key] })}
                     />
-                    <span>{v.description}<br /><span className="text-muted" style={{ fontSize: '0.72rem' }}>{formatDate(v.date, 'datetime')}</span></span>
+                    <span>
+                      <span className={`badge ${v.source === 'ipd' ? 'badge-warning' : 'badge-muted'}`} style={{ marginRight: '0.4rem' }}>{v.source.toUpperCase()}</span>
+                      {v.description}<br />
+                      <span className="text-muted" style={{ fontSize: '0.72rem' }}>{formatDate(v.date, 'datetime')}</span>
+                    </span>
                     <span style={{ marginLeft: 'auto' }}>{formatINR(v.amount)}</span>
                   </label>
                 ))}
@@ -258,7 +273,7 @@ export default function BillBuilder() {
               className="btn btn-primary btn-block"
               style={{ marginTop: '1rem' }}
               onClick={handleGenerate}
-              disabled={saving || selectedVisits.length === 0 || discountInvalid}
+              disabled={saving || selectedItems.length === 0 || discountInvalid}
             >
               {saving ? 'Generating…' : `Generate Invoice — ${formatINR(total)}`}
             </button>

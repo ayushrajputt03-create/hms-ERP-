@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useAuth } from '@hooks/useAuth'
 import { useFacility } from '@hooks/useFacility'
-import { subscribeToCollection, addDocument, updateDocument, getDocument } from '@lib/db'
+import { subscribeToCollection, getDocument } from '@lib/db'
+import { admitPatient } from '@lib/ipd'
 import { ChevronLeft, BedDouble, Save } from 'lucide-react'
 
 export default function AdmissionForm() {
@@ -10,8 +10,9 @@ export default function AdmissionForm() {
   const [params] = useSearchParams()
   const prefillPatientId = params.get('patientId') || ''
   const sourceVisitId = params.get('visitId') || ''
+  const prefillWardId = params.get('wardId') || ''
+  const prefillBedId = params.get('bedId') || ''
 
-  const { user, staffProfile } = useAuth()
   const { facilityId } = useFacility()
   const [patients, setPatients] = useState([])
   const [doctors, setDoctors] = useState([])
@@ -22,10 +23,9 @@ export default function AdmissionForm() {
   const [form, setForm] = useState({
     patientId: prefillPatientId,
     doctorId: '',
-    wardId: '',
-    bedId: '',
+    wardId: prefillWardId,
+    bedId: prefillBedId,
     diagnosis: '',
-    deposit: '',
     admissionDate: new Date().toISOString().slice(0, 16),
   })
 
@@ -52,10 +52,11 @@ export default function AdmissionForm() {
 
   const update = (field) => (e) => setForm({ ...form, [field]: e.target.value })
 
+  const isAvailable = (b) => !b.status || b.status === 'vacant'
   const selectedWard = wards.find((w) => w.id === form.wardId)
   const vacantBeds = selectedWard
     ? Object.entries(selectedWard.beds || {})
-        .filter(([, b]) => b.status !== 'occupied')
+        .filter(([, b]) => isAvailable(b))
         .map(([id, b]) => ({ id, ...b }))
     : []
 
@@ -67,56 +68,23 @@ export default function AdmissionForm() {
     setSaving(true)
     setError('')
     try {
-      const patient = patients.find((p) => p.id === form.patientId)
-      const doctor = doctors.find((d) => d.id === form.doctorId)
-      const bed = vacantBeds.find((b) => b.id === form.bedId)
-
-      const admissionId = await addDocument(`facilities/${facilityId}/ipd/admissions`, {
+      // Atomic RPC: locks the ward, rejects an already-taken bed, creates the
+      // admission and flips the bed — no client-side double-booking window.
+      const admissionId = await admitPatient({
         patientId: form.patientId,
-        patientName: patient?.name || '',
-        patientUhid: patient?.uhid || '',
         doctorId: form.doctorId,
-        doctorName: doctor?.name || '',
         wardId: form.wardId,
-        wardName: selectedWard?.name || '',
         bedId: form.bedId,
-        bedName: bed?.name || '',
-        ratePerDay: selectedWard?.ratePerDay || 0,
         diagnosis: form.diagnosis.trim() || null,
-        deposit: Number(form.deposit) || 0,
-        admissionDate: new Date(form.admissionDate).getTime(),
-        sourceVisitId: sourceVisitId || null,
-        status: 'admitted',
-        facilityId,
-      }, {
-        user: staffProfile?.name || user?.email, facilityId,
-        audit: { action: 'patient_admitted', module: 'ipd' },
       })
-
-      await updateDocument(`facilities/${facilityId}/ipd/wards/${form.wardId}/beds/${form.bedId}`, {
-        status: 'occupied',
-        admissionId,
-      })
-
-      if (Number(form.deposit) > 0) {
-        await addDocument(`facilities/${facilityId}/billing`, {
-          patientId: form.patientId,
-          patientName: patient?.name || '',
-          patientUhid: patient?.uhid || '',
-          type: 'ipd_deposit',
-          description: `IPD Admission Deposit — ${selectedWard?.name}/${bed?.name}`,
-          amount: -Number(form.deposit),
-          status: 'pending',
-          admissionId,
-          invoiceDate: Date.now(),
-          facilityId,
-        })
-      }
-
       navigate(`/ipd/admission/${admissionId}`)
     } catch (err) {
       console.error('Admission error:', err)
-      setError('Failed to admit patient. Please retry.')
+      if (/not available/i.test(err.message || '')) {
+        setError('That bed was just taken by someone else. Please pick another bed.')
+      } else {
+        setError(err.message || 'Failed to admit patient. Please retry.')
+      }
     } finally {
       setSaving(false)
     }
@@ -160,7 +128,7 @@ export default function AdmissionForm() {
             <select value={form.wardId} onChange={(e) => setForm({ ...form, wardId: e.target.value, bedId: '' })}>
               <option value="">Select ward...</option>
               {wards.map((w) => {
-                const vacant = Object.values(w.beds || {}).filter((b) => b.status !== 'occupied').length
+                const vacant = Object.values(w.beds || {}).filter(isAvailable).length
                 return (
                   <option key={w.id} value={w.id} disabled={vacant === 0}>
                     {w.name} ({vacant} vacant) — ₹{w.ratePerDay || 0}/day
@@ -177,17 +145,6 @@ export default function AdmissionForm() {
                 <option key={b.id} value={b.id}>{b.name}</option>
               ))}
             </select>
-          </div>
-        </div>
-
-        <div className="form-row">
-          <div className="form-group">
-            <label>Admission Date & Time</label>
-            <input type="datetime-local" value={form.admissionDate} onChange={update('admissionDate')} />
-          </div>
-          <div className="form-group">
-            <label>Deposit Amount (₹)</label>
-            <input type="number" min="0" value={form.deposit} onChange={update('deposit')} placeholder="0" />
           </div>
         </div>
 
