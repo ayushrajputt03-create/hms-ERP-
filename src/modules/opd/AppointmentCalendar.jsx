@@ -164,21 +164,32 @@ function UpcomingFollowUps({ visits, onBook }) {
   )
 }
 
+function initials(name) {
+  return (name || '?').split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase()
+}
+
 function DayView({ date, doctors, visits, onSlotClick, onVisitClick }) {
   if (doctors.length === 0) {
     return <div className="empty-state">No doctors on the roster. Add doctors from Staff Management first.</div>
   }
+
+  const isToday = date === toISODate(new Date())
+  const nowHour = new Date().getHours()
 
   return (
     <div className="calendar-grid">
       <div className="calendar-header-row">
         <div className="calendar-time-col">Time</div>
         {doctors.map((doc) => (
-          <div key={doc.id} className="calendar-doctor-col">{doc.name}</div>
+          <div key={doc.id} className="calendar-doctor-col">
+            <span className="calendar-doc-avatar">{initials(doc.name)}</span>
+            <span className="calendar-doc-name">{doc.name}</span>
+            {doc.specialization && <span className="calendar-doc-spec">{doc.specialization}</span>}
+          </div>
         ))}
       </div>
       {HOURS.map((hour) => (
-        <div key={hour} className="calendar-row">
+        <div key={hour} className={`calendar-row ${isToday && hour === nowHour ? 'calendar-row-now' : ''}`}>
           <div className="calendar-time-col">
             <Clock size={12} /> {hour.toString().padStart(2, '0')}:00
           </div>

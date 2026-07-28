@@ -175,16 +175,38 @@ export function subscribeToDocument(path, callback) {
 
 export function subscribeToCollection(collectionPath, callback) {
   if (!supabase) { callback([]); return () => {} }
-  const load = async () => {
+
+  // Maintain a local cache keyed by row path. The initial load fetches the
+  // whole collection once; subsequent realtime events patch a single row
+  // (O(1)) instead of re-fetching the entire collection on every change.
+  const cache = new Map()
+  let ready = false
+  const emit = () => callback(Array.from(cache.values()))
+
+  const initialLoad = async () => {
     const { data } = await supabase.from(TABLE).select('path,data').eq('collection', collectionPath)
-    callback((data || []).map(rowToDoc))
+    cache.clear()
+    for (const row of data || []) cache.set(row.path, rowToDoc(row))
+    ready = true
+    emit()
   }
-  load()
+  initialLoad()
+
   const channel = supabase
     .channel(`coll:${collectionPath}`)
     .on('postgres_changes',
       { event: '*', schema: 'public', table: TABLE, filter: `collection=eq.${collectionPath}` },
-      load)
+      (payload) => {
+        // Before the initial load resolves, that fetch already reflects the
+        // latest state, so any early events can be safely ignored.
+        if (!ready) return
+        if (payload.eventType === 'DELETE') {
+          if (payload.old?.path) cache.delete(payload.old.path)
+        } else if (payload.new?.path) {
+          cache.set(payload.new.path, rowToDoc(payload.new))
+        }
+        emit()
+      })
     .subscribe()
   return () => { supabase.removeChannel(channel) }
 }

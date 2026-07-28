@@ -3,7 +3,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #0F766E 0%, #064E3B 100%);
+  background: linear-gradient(135deg, #052659 0%, #021024 100%);
 }
 
 .sa-login-card {
@@ -18,7 +18,7 @@
 .sa-login-logo {
   text-align: center;
   margin-bottom: 2rem;
-  color: #0F766E;
+  color: #052659;
 }
 
 .sa-login-logo h1 {
@@ -39,7 +39,7 @@
 
 .sa-sidebar {
   width: 240px;
-  background: #0F766E;
+  background: linear-gradient(185deg, #052659 0%, #021024 62%, #010b1a 100%);
   color: #fff;
   display: flex;
   flex-direction: column;

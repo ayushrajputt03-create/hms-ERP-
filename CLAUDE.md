@@ -96,7 +96,7 @@ Permission checks: `can(role, module, action)` in `src/lib/rbac.js`. Enforced at
 
 ## Design Rules
 
-- Theme: Medical teal `#0F766E` primary, `#0284C7` accent, dark mode via CSS variables
+- Theme: Northstar navy — `#052659` primary, `#5483B3`/`#7DA0CA` accents, `#021024` sidebar, `#C1E8FF` pale highlight; dark mode via CSS variables. (Matches the school ERP palette.)
 - Dense, operational UI — no decorative gradients
 - Print documents: A4-safe, hide app UI
 - Use lucide-react icons exclusively

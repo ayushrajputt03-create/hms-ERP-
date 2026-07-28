@@ -54,7 +54,7 @@ export function addTable(pdf, { headers, rows, startY, colWidths }) {
 
   pdf.setFontSize(9)
   pdf.setFont('helvetica', 'bold')
-  pdf.setFillColor(15, 118, 110)
+  pdf.setFillColor(5, 38, 89)
   pdf.setTextColor(255, 255, 255)
   pdf.rect(margin, y, tableWidth, 8, 'F')
 
