@@ -22,10 +22,11 @@ export default function StaffListPage() {
 
   const [form, setForm] = useState({
     name: '', email: '', phone: '', role: 'receptionist', department: '', status: 'active',
+    registrationNumber: '', qualification: '',
   })
 
   const resetForm = () => {
-    setForm({ name: '', email: '', phone: '', role: 'receptionist', department: '', status: 'active' })
+    setForm({ name: '', email: '', phone: '', role: 'receptionist', department: '', status: 'active', registrationNumber: '', qualification: '' })
     setEditing(null)
     setShowForm(false)
   }
@@ -70,6 +71,8 @@ export default function StaffListPage() {
       role: staff.role || 'receptionist',
       department: staff.department || '',
       status: staff.status || 'active',
+      registrationNumber: staff.registrationNumber || '',
+      qualification: staff.qualification || '',
     })
     setEditing(staff)
     setShowForm(true)
@@ -165,6 +168,26 @@ export default function StaffListPage() {
               <input value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} placeholder="e.g. General Medicine" />
             </div>
           </div>
+          {form.role === 'doctor' && (
+            <div className="form-row">
+              <div className="form-group">
+                <label>Medical Registration No.</label>
+                <input
+                  value={form.registrationNumber}
+                  onChange={(e) => setForm({ ...form, registrationNumber: e.target.value })}
+                  placeholder="e.g. UPMC/12345"
+                />
+              </div>
+              <div className="form-group">
+                <label>Qualification</label>
+                <input
+                  value={form.qualification}
+                  onChange={(e) => setForm({ ...form, qualification: e.target.value })}
+                  placeholder="e.g. MBBS, MD (Medicine)"
+                />
+              </div>
+            </div>
+          )}
           <div className="form-group">
             <label>Status</label>
             <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>

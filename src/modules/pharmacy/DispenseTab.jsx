@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useFacility } from '@hooks/useFacility'
 import { subscribeToCollection } from '@lib/db'
-import { dispenseMedicine } from '@lib/pharmacy'
+import { dispenseMedicine, isExpired, isNearExpiry } from '@lib/pharmacy'
 import { formatINR, formatDate } from '@lib/utils'
 import Modal from '@components/Modal'
 import { useToast } from '@components/Toast'
@@ -92,11 +92,14 @@ function DispenseModal({ title, medicines, batches, patientId, opdVisitId, presc
   const [error, setError] = useState('')
 
   // Batches with stock, grouped by medicine, earliest expiry first (FEFO).
+  // Expired batches are excluded outright — they must never reach a patient.
   const batchesByMed = useMemo(() => {
     const map = {}
-    batches.filter((b) => (Number(b.quantity) || 0) > 0).forEach((b) => {
-      (map[b.medicineId] ||= []).push(b)
-    })
+    batches
+      .filter((b) => (Number(b.quantity) || 0) > 0 && !isExpired(b.expiryDate))
+      .forEach((b) => {
+        (map[b.medicineId] ||= []).push(b)
+      })
     Object.values(map).forEach((arr) => arr.sort((a, b) =>
       String(a.expiryDate || '').localeCompare(String(b.expiryDate || ''))))
     return map
@@ -136,6 +139,10 @@ function DispenseModal({ title, medicines, batches, patientId, opdVisitId, presc
     // Client-side stock pre-check (the RPC is the real gate under lock).
     for (const it of items) {
       const b = batchById[it.batchId]
+      if (isExpired(b?.expiryDate)) {
+        setError(`Batch ${b?.batchNumber} of ${b?.medicineName} expired on ${formatDate(b.expiryDate)} — cannot dispense.`)
+        return
+      }
       if ((Number(b?.quantity) || 0) < it.quantity) {
         setError(`Insufficient stock for ${b?.medicineName} (batch ${b?.batchNumber}, available ${b?.quantity ?? 0}).`)
         return
@@ -183,7 +190,8 @@ function DispenseModal({ title, medicines, batches, patientId, opdVisitId, presc
                   <option value="">{medBatches.length ? 'Select batch…' : 'No stock'}</option>
                   {medBatches.map((b) => (
                     <option key={b.id} value={b.id}>
-                      {b.batchNumber} — {b.quantity} left{b.expiryDate ? ` — exp ${formatDate(b.expiryDate)}` : ''}
+                      {b.batchNumber} — {b.quantity} left
+                      {b.expiryDate ? ` — exp ${formatDate(b.expiryDate)}${isNearExpiry(b.expiryDate) ? ' (expiring soon)' : ''}` : ''}
                     </option>
                   ))}
                 </select>

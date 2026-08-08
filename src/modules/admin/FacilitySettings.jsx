@@ -6,7 +6,8 @@ import { useToast } from '@components/Toast'
 import {
   FACILITY_TYPE_LABELS, MODULE_LABELS, INDIAN_STATES,
 } from '@lib/constants'
-import { Save, Building2, Settings, Shield } from 'lucide-react'
+import { Save, Building2, Settings, Shield, IndianRupee } from 'lucide-react'
+import TariffMaster from './TariffMaster'
 
 export default function FacilitySettings() {
   const { facilityId, facilityConfig } = useFacility()
@@ -59,9 +60,11 @@ export default function FacilitySettings() {
     <div className="settings-page">
       <div className="page-header">
         <h2>Facility Settings</h2>
-        <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-          <Save size={16} /> {saving ? 'Saving...' : 'Save Changes'}
-        </button>
+        {tab !== 'tariffs' && (
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+            <Save size={16} /> {saving ? 'Saving...' : 'Save Changes'}
+          </button>
+        )}
       </div>
 
       <div className="tabs">
@@ -74,7 +77,12 @@ export default function FacilitySettings() {
         <button className={`tab ${tab === 'billing' ? 'active' : ''}`} onClick={() => setTab('billing')}>
           <Shield size={16} /> Billing & GST
         </button>
+        <button className={`tab ${tab === 'tariffs' ? 'active' : ''}`} onClick={() => setTab('tariffs')}>
+          <IndianRupee size={16} /> Tariff Master
+        </button>
       </div>
+
+      {tab === 'tariffs' && <TariffMaster />}
 
       {tab === 'general' && (
         <div className="settings-section">

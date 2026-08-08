@@ -1831,6 +1831,108 @@ a:hover { text-decoration: underline; }
   font-size: 0.8rem;
 }
 
+/* --- Prescription: catalog autocomplete, stock hints, allergy conflicts --- */
+.prescription-row { flex-wrap: wrap; }
+
+.prescription-row-alert {
+  background: rgba(220, 38, 38, 0.05);
+  border-left: 3px solid var(--danger, #dc2626);
+  padding-left: 0.6rem;
+}
+
+.allergy-conflict {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 4px;
+  background: rgba(220, 38, 38, 0.1);
+  color: var(--danger, #dc2626);
+  font-size: 0.75rem;
+}
+
+.medicine-autocomplete { position: relative; }
+
+.autocomplete-list {
+  position: absolute;
+  z-index: 30;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--bg-card, #fff);
+  border: 1px solid var(--border, #d4d4d4);
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(2, 16, 36, 0.15);
+}
+
+.autocomplete-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.autocomplete-list li.active { background: rgba(84, 131, 179, 0.15); }
+
+.autocomplete-stock { font-size: 0.7rem; color: var(--success, #15803d); }
+.autocomplete-stock.out { color: var(--danger, #dc2626); }
+
+.stock-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.2rem;
+  font-size: 0.68rem;
+}
+
+.stock-hint-ok { color: var(--success, #15803d); }
+.stock-hint-out { color: var(--danger, #dc2626); }
+.stock-hint-unknown { color: var(--text-muted, #737373); }
+
+/* --- Vitals range flags --- */
+.vital-warning input { border-color: #d97706; }
+.vital-critical input { border-color: var(--danger, #dc2626); background: rgba(220, 38, 38, 0.06); }
+
+.vital-flag {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.66rem;
+  line-height: 1.2;
+}
+
+.vital-flag-warning { color: #d97706; }
+.vital-flag-critical { color: var(--danger, #dc2626); font-weight: 600; }
+
+/* --- Consultation autosave + history detail --- */
+.autosave-hint {
+  margin-right: auto;
+  font-size: 0.72rem;
+  color: var(--text-muted, #737373);
+}
+
+.history-vitals,
+.history-rx {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--text-muted, #737373);
+  margin-top: 0.15rem;
+}
+
+.confirm-section { margin-bottom: 0.9rem; }
+.confirm-section strong { display: flex; align-items: center; gap: 0.3rem; font-size: 0.85rem; }
+.confirm-section ul { margin: 0.35rem 0 0; padding-left: 1.1rem; font-size: 0.8rem; }
+.confirm-section-danger strong,
+.confirm-section-danger ul { color: var(--danger, #dc2626); }
+
 @media (max-width: 768px) {
   .consultation-layout { grid-template-columns: 1fr; }
   .prescription-fields { grid-template-columns: 1fr 1fr; }

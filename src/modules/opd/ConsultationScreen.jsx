@@ -1,13 +1,18 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '@hooks/useAuth'
 import { useFacility } from '@hooks/useFacility'
-import { getDocument, updateDocument, queryDocuments } from '@lib/db'
+import { getDocument, updateDocument, queryDocuments, subscribeToCollection } from '@lib/db'
+import { completeOpdVisit } from '@lib/opd'
 import { formatDate, calculateAge } from '@lib/utils'
+import { stockByMedicine } from '@lib/pharmacy'
+import { flagVitals, checkPrescriptionAllergies } from '@lib/clinical'
+import { buildPrescriptionPDF } from '@lib/pdf'
 import PrescriptionBuilder from './PrescriptionBuilder'
+import Modal from '@components/Modal'
 import {
   ChevronLeft, AlertTriangle, Heart, Thermometer, Activity,
-  Droplets, Wind, Save, CheckCircle, FileText, Clock,
+  Droplets, Save, CheckCircle, FileText, Clock, Printer,
 } from 'lucide-react'
 
 export default function ConsultationScreen() {
@@ -38,11 +43,29 @@ export default function ConsultationScreen() {
   })()
 
   const [history, setHistory] = useState([])
+  const [medicines, setMedicines] = useState([])
+  const [batches, setBatches] = useState([])
+  const [lastSavedAt, setLastSavedAt] = useState(null)
+  const [confirmEnd, setConfirmEnd] = useState(null)
+
+  const stock = useMemo(() => stockByMedicine(batches), [batches])
+  const vitalFlags = useMemo(() => flagVitals(vitals), [vitals])
+  const allergies = patient?.allergies || []
 
   useEffect(() => {
     if (!facilityId || !visitId) return
     loadVisit()
   }, [facilityId, visitId])
+
+  // Pharmacy catalog drives prescription autocomplete and live stock hints.
+  useEffect(() => {
+    if (!facilityId) return
+    const unsubs = [
+      subscribeToCollection(`facilities/${facilityId}/pharmacy/medicines`, setMedicines),
+      subscribeToCollection(`facilities/${facilityId}/pharmacy/batches`, setBatches),
+    ]
+    return () => unsubs.forEach((fn) => fn())
+  }, [facilityId])
 
   const loadVisit = async () => {
     const v = await getDocument(`facilities/${facilityId}/opdVisits/${visitId}`)
@@ -69,24 +92,33 @@ export default function ConsultationScreen() {
 
   const updateVital = (field) => (e) => setVitals({ ...vitals, [field]: e.target.value })
 
+  const draft = () => ({
+    vitals: { ...vitals, bmi },
+    chiefComplaint: chiefComplaint.trim(),
+    diagnosis: diagnosis.trim(),
+    notes: notes.trim(),
+    prescription,
+    followUpDate: followUpDate || null,
+  })
+
+  const persistDraft = async (silent) => {
+    await updateDocument(`facilities/${facilityId}/opdVisits/${visitId}`, {
+      ...draft(),
+      status: 'in_progress',
+    }, {
+      user: staffProfile?.name || user?.email,
+      facilityId,
+      audit: { action: silent ? 'consultation_autosaved' : 'consultation_saved', module: 'opd' },
+    })
+    setLastSavedAt(Date.now())
+  }
+
   const handleSave = async () => {
     setSaving(true)
     setError('')
     setSaved(false)
     try {
-      await updateDocument(`facilities/${facilityId}/opdVisits/${visitId}`, {
-        vitals: { ...vitals, bmi },
-        chiefComplaint: chiefComplaint.trim(),
-        diagnosis: diagnosis.trim(),
-        notes: notes.trim(),
-        prescription,
-        followUpDate: followUpDate || null,
-        status: 'in_progress',
-      }, {
-        user: staffProfile?.name || user?.email,
-        facilityId,
-        audit: { action: 'consultation_saved', module: 'opd' },
-      })
+      await persistDraft(false)
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     } catch (err) {
@@ -97,33 +129,77 @@ export default function ConsultationScreen() {
     }
   }
 
+  // Autosave the draft so a closed tab or refresh never loses the doctor's typing.
+  // The interval reads through refs so continuous typing never resets the timer.
+  const dirtyRef = useRef(false)
+  const saveRef = useRef(persistDraft)
+  saveRef.current = persistDraft
+
+  const firstRender = useRef(true)
+  useEffect(() => {
+    if (firstRender.current) { firstRender.current = false; return }
+    dirtyRef.current = true
+  }, [vitals, chiefComplaint, diagnosis, notes, prescription, followUpDate])
+
+  const isDraft = !loading && !!visit && visit.status !== 'completed'
+  useEffect(() => {
+    if (!isDraft) return
+    const id = setInterval(() => {
+      if (!dirtyRef.current) return
+      dirtyRef.current = false
+      saveRef.current(true).catch((err) => {
+        dirtyRef.current = true
+        console.error('Autosave failed:', err)
+      })
+    }, 20000)
+    return () => clearInterval(id)
+  }, [isDraft])
+
+  const requestEndVisit = () => {
+    const blocking = []
+    if (!chiefComplaint.trim()) blocking.push('Chief complaint is empty.')
+    if (!diagnosis.trim()) blocking.push('Diagnosis is empty.')
+
+    const warnings = []
+    const critical = Object.values(vitalFlags).filter((f) => f.level === 'critical')
+    critical.forEach((f) => warnings.push(f.text))
+    checkPrescriptionAllergies(prescription, allergies).forEach(({ item, conflicts }) => {
+      warnings.push(`${item.medicine} conflicts with recorded allergy: ${conflicts.map((c) => c.allergy).join(', ')}.`)
+    })
+
+    if (blocking.length === 0 && warnings.length === 0) { handleEndVisit(); return }
+    setConfirmEnd({ blocking, warnings })
+  }
+
+  const handlePrintRx = () => {
+    const pdf = buildPrescriptionPDF({
+      facility: facilityConfig || {},
+      patient,
+      visit: {
+        ...visit,
+        ...draft(),
+        patientAgeSex: patient?.dob
+          ? `${calculateAge(patient.dob)}Y / ${(patient.gender || '').charAt(0).toUpperCase()}`
+          : '—',
+      },
+      doctor: {
+        name: visit.doctorName,
+        registrationNumber: staffProfile?.registrationNumber,
+        qualification: staffProfile?.qualification,
+      },
+    })
+    pdf.save(`Rx-${patient?.uhid || visit.patientUhid || visitId}.pdf`)
+  }
+
   const handleEndVisit = async () => {
+    setConfirmEnd(null)
     setSaving(true)
     setError('')
     try {
-      // Resolve the consultation fee once and stamp it on the visit. Billing
-      // sources un-billed visits directly (billed:false) — no separate charge doc,
-      // so there's a single source of truth and no way to double-bill.
-      const tariffs = await queryDocuments(`facilities/${facilityId}/tariffMaster`)
-      const consultTariff = tariffs.find((t) => t.category === 'consultation' && t.status === 'active')
-      const consultationFee = consultTariff?.amount || 500
-
-      await updateDocument(`facilities/${facilityId}/opdVisits/${visitId}`, {
-        vitals: { ...vitals, bmi },
-        chiefComplaint: chiefComplaint.trim(),
-        diagnosis: diagnosis.trim(),
-        notes: notes.trim(),
-        prescription,
-        followUpDate: followUpDate || null,
-        status: 'completed',
-        completedAt: Date.now(),
-        consultationFee,
-        billed: false,
-      }, {
-        user: staffProfile?.name || user?.email,
-        facilityId,
-        audit: { action: 'consultation_completed', module: 'opd' },
-      })
+      // The server resolves the consultation fee from the tariff master and
+      // stamps status/completedAt/billed itself — the client never sends an
+      // amount, so a tampered request cannot set its own price.
+      await completeOpdVisit({ facilityId, visitId, clinical: draft() })
 
       if (patient) {
         await updateDocument(`facilities/${facilityId}/patients/${visit.patientId}`, {
@@ -134,7 +210,11 @@ export default function ConsultationScreen() {
       navigate('/opd/queue')
     } catch (err) {
       console.error('End visit error:', err)
-      setError('Failed to end visit.')
+      setError(
+        err.message?.includes('VISIT_ALREADY_COMPLETED')
+          ? 'This visit was already completed elsewhere.'
+          : 'Failed to end visit.'
+      )
     } finally {
       setSaving(false)
     }
@@ -152,12 +232,18 @@ export default function ConsultationScreen() {
           <ChevronLeft size={16} /> Back to Queue
         </button>
         <div className="consultation-actions">
+          {lastSavedAt && !isCompleted && (
+            <span className="autosave-hint">Draft saved {formatDate(lastSavedAt, 'time')}</span>
+          )}
+          <button className="btn btn-outline" onClick={handlePrintRx}>
+            <Printer size={14} /> Print Rx
+          </button>
           {!isCompleted && (
             <>
               <button className="btn btn-outline" onClick={handleSave} disabled={saving}>
                 <Save size={14} /> {saved ? 'Saved!' : 'Save'}
               </button>
-              <button className="btn btn-primary" onClick={handleEndVisit} disabled={saving}>
+              <button className="btn btn-primary" onClick={requestEndVisit} disabled={saving}>
                 <CheckCircle size={14} /> End Visit & Bill
               </button>
             </>
@@ -194,22 +280,14 @@ export default function ConsultationScreen() {
           <fieldset className="form-fieldset">
             <legend><Thermometer size={14} /> Vitals</legend>
             <div className="vitals-grid">
-              <div className="form-group">
-                <label><Activity size={12} /> BP (mmHg)</label>
-                <input value={vitals.bp} onChange={updateVital('bp')} placeholder="120/80" disabled={isCompleted} />
-              </div>
-              <div className="form-group">
-                <label><Thermometer size={12} /> Temp (°F)</label>
-                <input value={vitals.temp} onChange={updateVital('temp')} placeholder="98.6" disabled={isCompleted} />
-              </div>
-              <div className="form-group">
-                <label><Heart size={12} /> Pulse (bpm)</label>
-                <input value={vitals.pulse} onChange={updateVital('pulse')} placeholder="72" disabled={isCompleted} />
-              </div>
-              <div className="form-group">
-                <label><Droplets size={12} /> SpO2 (%)</label>
-                <input value={vitals.spo2} onChange={updateVital('spo2')} placeholder="98" disabled={isCompleted} />
-              </div>
+              <VitalField label={<><Activity size={12} /> BP (mmHg)</>} value={vitals.bp}
+                onChange={updateVital('bp')} placeholder="120/80" disabled={isCompleted} flag={vitalFlags.bp} />
+              <VitalField label={<><Thermometer size={12} /> Temp (°F)</>} value={vitals.temp}
+                onChange={updateVital('temp')} placeholder="98.6" disabled={isCompleted} flag={vitalFlags.temp} />
+              <VitalField label={<><Heart size={12} /> Pulse (bpm)</>} value={vitals.pulse}
+                onChange={updateVital('pulse')} placeholder="72" disabled={isCompleted} flag={vitalFlags.pulse} />
+              <VitalField label={<><Droplets size={12} /> SpO2 (%)</>} value={vitals.spo2}
+                onChange={updateVital('spo2')} placeholder="98" disabled={isCompleted} flag={vitalFlags.spo2} />
               <div className="form-group">
                 <label>Weight (kg)</label>
                 <input value={vitals.weight} onChange={updateVital('weight')} placeholder="70" disabled={isCompleted} />
@@ -239,6 +317,12 @@ export default function ConsultationScreen() {
                   <span className="history-date">{formatDate(hv.visitDate || hv.createdAt)}</span>
                   <span>{hv.chiefComplaint || '—'}</span>
                   {hv.diagnosis && <span className="history-dx">Dx: {hv.diagnosis}</span>}
+                  {hv.vitals && <HistoryVitals vitals={hv.vitals} />}
+                  {hv.prescription?.length > 0 && (
+                    <span className="history-rx">
+                      Rx: {hv.prescription.map((p) => p.medicine).filter(Boolean).join(', ')}
+                    </span>
+                  )}
                 </div>
               ))
             )}
@@ -271,6 +355,9 @@ export default function ConsultationScreen() {
           <PrescriptionBuilder
             items={prescription}
             onChange={isCompleted ? () => {} : setPrescription}
+            medicines={medicines}
+            stock={stock}
+            allergies={allergies}
           />
 
           <div className="form-group">
@@ -308,6 +395,54 @@ export default function ConsultationScreen() {
           </div>
         </div>
       </div>
+
+      {confirmEnd && (
+        <Modal isOpen onClose={() => setConfirmEnd(null)} title="Review before ending visit">
+          {confirmEnd.blocking.length > 0 && (
+            <div className="confirm-section">
+              <strong>Incomplete record</strong>
+              <ul>{confirmEnd.blocking.map((b, i) => <li key={i}>{b}</li>)}</ul>
+            </div>
+          )}
+          {confirmEnd.warnings.length > 0 && (
+            <div className="confirm-section confirm-section-danger">
+              <strong><AlertTriangle size={14} /> Clinical warnings</strong>
+              <ul>{confirmEnd.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
+            </div>
+          )}
+          <p className="text-muted">
+            Ending the visit locks this record and makes it billable. Go back and correct it, or confirm to proceed.
+          </p>
+          <div className="form-actions">
+            <button className="btn btn-outline" onClick={() => setConfirmEnd(null)}>Go back &amp; edit</button>
+            <button className="btn btn-primary" onClick={handleEndVisit} disabled={saving}>
+              End visit anyway
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   )
+}
+
+function VitalField({ label, value, onChange, placeholder, disabled, flag }) {
+  return (
+    <div className={`form-group vital-field ${flag ? `vital-${flag.level}` : ''}`}>
+      <label>{label}</label>
+      <input value={value} onChange={onChange} placeholder={placeholder} disabled={disabled} />
+      {flag && <span className={`vital-flag vital-flag-${flag.level}`}>{flag.text}</span>}
+    </div>
+  )
+}
+
+function HistoryVitals({ vitals }) {
+  const parts = [
+    vitals.bp && `BP ${vitals.bp}`,
+    vitals.pulse && `Pulse ${vitals.pulse}`,
+    vitals.temp && `Temp ${vitals.temp}°F`,
+    vitals.spo2 && `SpO2 ${vitals.spo2}%`,
+    vitals.weight && `Wt ${vitals.weight}kg`,
+  ].filter(Boolean)
+  if (parts.length === 0) return null
+  return <span className="history-vitals">{parts.join(' · ')}</span>
 }

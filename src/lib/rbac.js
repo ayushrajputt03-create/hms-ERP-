@@ -47,7 +47,8 @@ const PERMISSION_MATRIX = {
     [MODULES.PHARMACY]: VIEW_ONLY,
     [MODULES.LAB]: CREATE_VIEW,
     [MODULES.BILLING]: VIEW_ONLY,
-    [MODULES.STAFF]: VIEW_ONLY,
+    // No STAFF entry: staff management controls who can access what, so it is
+    // restricted to facility_admin/super_admin only.
     [MODULES.REPORTS]: VIEW_ONLY,
   },
   [ROLES.NURSE]: {
