@@ -1,18 +1,29 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useFacility } from '@hooks/useFacility'
+import { useAuth } from '@hooks/useAuth'
 import { subscribeToCollection } from '@lib/db'
 import { formatINR, formatDate, toISODate } from '@lib/utils'
+import { ROLES } from '@lib/constants'
 import StatCard from '@components/StatCard'
 import {
   BarChart3, Stethoscope, BedDouble, IndianRupee, Pill, Download,
 } from 'lucide-react'
 
-const TABS = [
+const ALL_TABS = [
   { key: 'opd', label: 'OPD', icon: Stethoscope },
   { key: 'ipd', label: 'IPD', icon: BedDouble },
   { key: 'revenue', label: 'Revenue', icon: IndianRupee },
   { key: 'pharmacy', label: 'Pharmacy', icon: Pill },
 ]
+
+// Reports visibility is scoped by role (Phase 7):
+//  - billing_staff: collection & dues only — no clinical stats (OPD/IPD/pharmacy)
+//  - doctor: only their own numbers (handled by a dedicated view below)
+//  - facility_admin/super_admin: everything (IPD tab still gated by module)
+function tabsForRole(role, ipdEnabled) {
+  if (role === ROLES.BILLING_STAFF) return ALL_TABS.filter((t) => t.key === 'revenue')
+  return ALL_TABS.filter((t) => t.key !== 'ipd' || ipdEnabled)
+}
 
 function downloadCSV(filename, headers, rows) {
   const escape = (v) => {
@@ -30,8 +41,16 @@ function downloadCSV(filename, headers, rows) {
 }
 
 export default function ReportsPage() {
-  const { facilityId } = useFacility()
-  const [tab, setTab] = useState('opd')
+  const { facilityId, isModuleEnabled } = useFacility()
+  const { staffProfile, user } = useAuth()
+  const role = staffProfile?.role
+  const isDoctor = role === ROLES.DOCTOR
+  const tabs = useMemo(() => tabsForRole(role, isModuleEnabled('ipd')), [role, isModuleEnabled])
+  const [tab, setTab] = useState(tabs[0]?.key || 'revenue')
+
+  useEffect(() => {
+    if (!tabs.some((t) => t.key === tab)) setTab(tabs[0]?.key || 'revenue')
+  }, [tabs, tab])
   const [from, setFrom] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() - 30); return toISODate(d)
   })
@@ -65,6 +84,23 @@ export default function ReportsPage() {
 
   if (loading) return <div className="empty-state">Loading report data...</div>
 
+  // Doctors only ever see their own activity — never a full doctor list.
+  if (isDoctor) {
+    const myId = user?.uid || staffProfile?.uid
+    const myName = staffProfile?.name
+    const myVisits = visits.filter(
+      (v) => (v.doctorId && v.doctorId === myId) || (myName && v.doctorName === myName)
+    )
+    return (
+      <DoctorOwnReport
+        doctorName={myName || 'You'}
+        visits={myVisits.filter((v) => inRange(v.visitDate || v.createdAt || 0))}
+        rangeLabel={`${formatDate(range.fromTs)} — ${formatDate(range.toTs)}`}
+        from={from} to={to} setFrom={setFrom} setTo={setTo}
+      />
+    )
+  }
+
   return (
     <div>
       <div className="page-header">
@@ -85,7 +121,7 @@ export default function ReportsPage() {
       </div>
 
       <div className="tabs">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <button key={t.key} className={`tab ${tab === t.key ? 'active' : ''}`} onClick={() => setTab(t.key)}>
             <t.icon size={15} /> {t.label}
           </button>
@@ -93,7 +129,7 @@ export default function ReportsPage() {
       </div>
 
       {tab === 'opd' && <OPDReport visits={visits.filter((v) => inRange(v.visitDate || v.createdAt || 0))} />}
-      {tab === 'ipd' && <IPDReport admissions={admissions} wards={wards} inRange={inRange} />}
+      {tab === 'ipd' && isModuleEnabled('ipd') && <IPDReport admissions={admissions} wards={wards} inRange={inRange} />}
       {tab === 'revenue' && <RevenueReport billing={billing.filter((b) => inRange(b.invoiceDate || b.createdAt || 0))} />}
       {tab === 'pharmacy' && <PharmacyReport sales={sales.filter((s) => inRange(s.saleDate || 0))} />}
     </div>
@@ -237,6 +273,53 @@ function PharmacyReport({ sales }) {
         headers={['Medicine', 'Units', 'Value']}
         rows={topMedicines.map(([name, d]) => [name, d.qty, d.value])}
         filename="pharmacy-report.csv"
+      />
+    </div>
+  )
+}
+
+// Doctor-scoped view: shows only the signed-in doctor's own visits & revenue.
+// No other doctor's name or numbers are ever rendered here.
+function DoctorOwnReport({ doctorName, visits, rangeLabel, from, to, setFrom, setTo }) {
+  const completed = visits.filter((v) => v.status === 'completed')
+  const revenue = completed.reduce((s, v) => s + (Number(v.consultationFee) || 0), 0)
+
+  return (
+    <div>
+      <div className="page-header">
+        <div>
+          <h2><BarChart3 size={22} /> My Reports — Dr. {doctorName}</h2>
+          <p>{rangeLabel}</p>
+        </div>
+        <div className="report-filters" style={{ marginBottom: 0 }}>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label>From</label>
+            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label>To</label>
+            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+          </div>
+        </div>
+      </div>
+
+      <div className="stats-grid">
+        <StatCard icon={Stethoscope} label="My Visits" value={visits.length} color="teal" />
+        <StatCard icon={Stethoscope} label="Completed" value={completed.length} color="green" />
+        <StatCard icon={IndianRupee} label="My Revenue" value={formatINR(revenue)} sub="from consultation fees" color="blue" />
+      </div>
+
+      <ReportTable
+        title="My Visits"
+        headers={['Patient', 'UHID', 'Date', 'Status', 'Fee']}
+        rows={visits
+          .slice()
+          .sort((a, b) => (b.visitDate || b.createdAt || 0) - (a.visitDate || a.createdAt || 0))
+          .map((v) => [
+            v.patientName, v.patientUhid, formatDate(v.visitDate || v.createdAt),
+            v.status, Number(v.consultationFee) || 0,
+          ])}
+        filename="my-report.csv"
       />
     </div>
   )
