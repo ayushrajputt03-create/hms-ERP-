@@ -6,7 +6,7 @@ import { subscribeToCollection, updateDocument, getDocument } from '@lib/db'
 import { toISODate } from '@lib/utils'
 import { buildOpdSlipPDF } from '@lib/pdf'
 import { departmentSummary } from '@lib/departments'
-import { ListOrdered, CheckCircle, Clock, UserCheck, XCircle, Printer } from 'lucide-react'
+import { ListOrdered, CheckCircle, Clock, UserCheck, XCircle, Printer, UserPlus } from 'lucide-react'
 
 const STATUS_ICONS = {
   booked: Clock,
@@ -70,7 +70,7 @@ export default function QueueScreen() {
     const patient = visit.patientId
       ? await getDocument(`facilities/${facilityId}/patients/${visit.patientId}`)
       : null
-    const pdf = buildOpdSlipPDF({ facility: facilityConfig || {}, patient, visit })
+    const pdf = await buildOpdSlipPDF({ facility: facilityConfig || {}, patient, visit })
     pdf.save(`OPD-Slip-${visit.patientUhid || visit.tokenNumber || visit.id}.pdf`)
   }
 
@@ -88,6 +88,9 @@ export default function QueueScreen() {
           <h2><ListOrdered size={22} /> OPD Queue — Today</h2>
           <p>{filtered.length} appointment{filtered.length !== 1 ? 's' : ''}</p>
         </div>
+        <button className="btn btn-primary" onClick={() => navigate('/opd/register')}>
+          <UserPlus size={16} /> New Registration
+        </button>
       </div>
 
       <div className="queue-stats">

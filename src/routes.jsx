@@ -25,6 +25,7 @@ const PatientProfile = lazy(() => import('@modules/patients/PatientProfile'))
 const AppointmentCalendar = lazy(() => import('@modules/opd/AppointmentCalendar'))
 const QueueScreen = lazy(() => import('@modules/opd/QueueScreen'))
 const ConsultationScreen = lazy(() => import('@modules/opd/ConsultationScreen'))
+const OPDRegistrationForm = lazy(() => import('@modules/opd/OPDRegistrationForm'))
 
 const PharmacyPage = lazy(() => import('@modules/pharmacy/PharmacyPage'))
 const LabPage = lazy(() => import('@modules/lab/LabPage'))
@@ -95,6 +96,9 @@ export default function AppRoutes() {
           {/* OPD module */}
           <Route path="opd" element={
             <ModuleGate module="opd"><AppointmentCalendar /></ModuleGate>
+          } />
+          <Route path="opd/register" element={
+            <ModuleGate module="opd"><OPDRegistrationForm /></ModuleGate>
           } />
           <Route path="opd/queue" element={
             <ModuleGate module="opd"><QueueScreen /></ModuleGate>

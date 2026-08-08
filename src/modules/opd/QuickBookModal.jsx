@@ -1,15 +1,14 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useAuth } from '@hooks/useAuth'
 import { useFacility } from '@hooks/useFacility'
-import { addDocument, subscribeToCollection, incrementCounter } from '@lib/db'
+import { subscribeToCollection } from '@lib/db'
+import { registerOpdVisit, registrationErrorMessage } from '@lib/opd'
 import {
-  departmentsForFlow, doctorsInDepartment, departmentSnapshot, departmentLocation,
+  departmentsForFlow, doctorsInDepartment, departmentLocation,
 } from '@lib/departments'
 import Modal from '@components/Modal'
 import { Calendar, Clock, User, Stethoscope, Network, MapPin } from 'lucide-react'
 
 export default function QuickBookModal({ isOpen, onClose, prefill = {}, doctors = [] }) {
-  const { user, staffProfile } = useAuth()
   const { facilityId } = useFacility()
   const [patients, setPatients] = useState([])
   const [departments, setDepartments] = useState([])
@@ -67,35 +66,20 @@ export default function QuickBookModal({ isOpen, onClose, prefill = {}, doctors 
     setSaving(true)
     setError('')
     try {
-      const patient = patients.find((p) => p.id === form.patientId)
-      const doctor = doctors.find((d) => d.id === form.doctorId)
-      const visitDate = new Date(`${form.date}T${String(form.hour).padStart(2, '0')}:00:00`).getTime()
-      const tokenNumber = await incrementCounter(`facilities/${facilityId}/counters/opdToken-${form.date}`)
-
-      await addDocument(`facilities/${facilityId}/opdVisits`, {
+      // Same server call the registration desk uses, so a quick booking and a
+      // counter registration draw from one per-department token sequence and
+      // neither can hand out a duplicate.
+      await registerOpdVisit({
         patientId: form.patientId,
-        patientName: patient?.name || '',
-        patientUhid: patient?.uhid || '',
+        departmentId: form.departmentId,
         doctorId: form.doctorId,
-        doctorName: doctor?.name || '',
-        // Snapshot so a later department rename or move never rewrites a
-        // parchi the patient is already holding.
-        ...departmentSnapshot(selectedDept),
-        tokenNumber,
-        status: 'booked',
-        visitDate,
-        chiefComplaint: form.chiefComplaint.trim() || null,
-        facilityId,
-      }, {
-        user: staffProfile?.name || user?.email,
-        facilityId,
-        audit: { action: 'appointment_booked', module: 'opd' },
+        visitDate: new Date(`${form.date}T${String(form.hour).padStart(2, '0')}:00:00`).getTime(),
+        chiefComplaint: form.chiefComplaint,
       })
-
       onClose()
     } catch (err) {
       console.error('Book appointment error:', err)
-      setError('Failed to book appointment.')
+      setError(registrationErrorMessage(err))
     } finally {
       setSaving(false)
     }

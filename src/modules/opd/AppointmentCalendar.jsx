@@ -7,7 +7,7 @@ import { subscribeToCollection } from '@lib/db'
 import { formatDate, toISODate } from '@lib/utils'
 import QuickBookModal from './QuickBookModal'
 import {
-  Stethoscope, ChevronLeft, ChevronRight, Plus, Calendar, Clock,
+  Stethoscope, ChevronLeft, ChevronRight, Plus, Calendar, Clock, UserPlus,
 } from 'lucide-react'
 
 const STATUS_COLORS = {
@@ -85,9 +85,16 @@ export default function AppointmentCalendar() {
             <button className={`btn ${view === 'week' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setView('week')}>Week</button>
           </div>
           {can('opd', 'create') && (
-            <button className="btn btn-primary" onClick={() => setBookModal({ date: currentDate })}>
-              <Plus size={16} /> Book Appointment
-            </button>
+            <>
+              <button className="btn btn-outline" onClick={() => setBookModal({ date: currentDate })}>
+                <Plus size={16} /> Book Appointment
+              </button>
+              {/* Full counter registration: takes patient details as well, and
+                  issues the UHID, token and department register number. */}
+              <button className="btn btn-primary" onClick={() => navigate('/opd/register')}>
+                <UserPlus size={16} /> New Registration
+              </button>
+            </>
           )}
         </div>
       </div>

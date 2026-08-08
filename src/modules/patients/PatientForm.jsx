@@ -4,10 +4,13 @@ import { useAuth } from '@hooks/useAuth'
 import { useFacility } from '@hooks/useFacility'
 import { getDocument, setDocument, addDocument, incrementCounter } from '@lib/db'
 import { INDIAN_STATES } from '@lib/constants'
+import {
+  RELATION_TYPES, PATIENT_TYPES, PATIENT_TYPE_LABELS, formatAge,
+} from '@lib/patients'
 import TagInput from './TagInput'
 import {
   User, Phone, Mail, MapPin, Calendar, Heart, AlertTriangle,
-  ChevronLeft, Save, Loader,
+  ChevronLeft, Save, Loader, Briefcase, ShieldAlert,
 } from 'lucide-react'
 
 export default function PatientForm() {
@@ -23,6 +26,8 @@ export default function PatientForm() {
 
   const [form, setForm] = useState({
     name: '', dob: '', gender: 'male', phone: '', email: '',
+    relationType: RELATION_TYPES.SO, guardianName: '', occupation: '',
+    patientType: PATIENT_TYPES.NON_MLC, abhaId: '',
     address: '', city: '', state: 'Uttar Pradesh', pincode: '',
     emergencyContactName: '', emergencyContactPhone: '', emergencyContactRelation: '',
     allergies: [], conditions: [], bloodGroup: '', notes: '',
@@ -38,6 +43,11 @@ export default function PatientForm() {
           gender: doc.gender || 'male',
           phone: doc.phone || '',
           email: doc.email || '',
+          relationType: doc.relationType || RELATION_TYPES.SO,
+          guardianName: doc.guardianName || '',
+          occupation: doc.occupation || '',
+          patientType: doc.patientType || PATIENT_TYPES.NON_MLC,
+          abhaId: doc.abhaId || '',
           address: doc.address || '',
           city: doc.city || '',
           state: doc.state || 'Uttar Pradesh',
@@ -75,6 +85,11 @@ export default function PatientForm() {
         gender: form.gender,
         phone: form.phone.trim(),
         email: form.email.trim() || null,
+        relationType: form.relationType,
+        guardianName: form.guardianName.trim() || null,
+        occupation: form.occupation.trim() || null,
+        patientType: form.patientType,
+        abhaId: form.abhaId.trim() || null,
         address: form.address.trim() || null,
         city: form.city.trim() || null,
         state: form.state,
@@ -144,6 +159,24 @@ export default function PatientForm() {
               <label><Calendar size={14} /> Date of Birth</label>
               <input type="date" value={form.dob} onChange={update('dob')} max={new Date().toISOString().split('T')[0]} />
             </div>
+            <div className="form-group">
+              {/* Derived, never typed — staff misreport age far more often
+                  than they misreport a date of birth. */}
+              <label>Age (Y M D)</label>
+              <input value={formatAge(form.dob) || '—'} readOnly disabled />
+            </div>
+          </div>
+          <div className="form-row">
+            <div className="form-group">
+              <label>Relation</label>
+              <select value={form.relationType} onChange={update('relationType')}>
+                {Object.values(RELATION_TYPES).map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+            <div className="form-group" style={{ flex: 2 }}>
+              <label>Guardian / Spouse Name</label>
+              <input value={form.guardianName} onChange={update('guardianName')} placeholder="Father / husband name" />
+            </div>
           </div>
           <div className="form-row">
             <div className="form-group">
@@ -172,6 +205,24 @@ export default function PatientForm() {
             <div className="form-group">
               <label><Mail size={14} /> Email</label>
               <input type="email" value={form.email} onChange={update('email')} placeholder="Email (optional)" />
+            </div>
+          </div>
+          <div className="form-row">
+            <div className="form-group">
+              <label><Briefcase size={14} /> Occupation</label>
+              <input value={form.occupation} onChange={update('occupation')} placeholder="Optional" />
+            </div>
+            <div className="form-group">
+              <label>ABHA ID</label>
+              <input value={form.abhaId} onChange={update('abhaId')} placeholder="ABDM health ID" />
+            </div>
+            <div className="form-group">
+              <label><ShieldAlert size={14} /> Case Type</label>
+              <select value={form.patientType} onChange={update('patientType')}>
+                {Object.entries(PATIENT_TYPE_LABELS).map(([v, l]) => (
+                  <option key={v} value={v}>{l}</option>
+                ))}
+              </select>
             </div>
           </div>
         </fieldset>

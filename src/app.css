@@ -2616,3 +2616,77 @@ body {
   font-weight: 700;
   box-shadow: inset 2px 0 0 var(--primary);
 }
+
+/* ---- OPD registration desk ---- */
+
+.patient-match-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.patient-match {
+  display: grid;
+  grid-template-columns: 2fr 1.4fr 1fr;
+  gap: 0.75rem;
+  align-items: center;
+  text-align: left;
+  padding: 0.6rem 0.85rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.patient-match:hover { border-color: var(--primary); }
+.patient-match.active { border-color: var(--primary); box-shadow: inset 3px 0 0 var(--primary); }
+.patient-match span { color: var(--text-muted); font-size: 0.78rem; }
+
+/* The token is read aloud to the patient at the counter, so it is sized to be
+   legible across a desk rather than styled to match the surrounding form. */
+.registration-token {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+  background: var(--bg-subtle, #f1f5f9);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.registration-token-label {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.registration-token-value {
+  font-size: 3rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--primary);
+}
+
+.registration-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.6rem 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.registration-summary > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px dashed var(--border);
+  font-size: 0.85rem;
+}
+
+.registration-summary span { color: var(--text-muted); }

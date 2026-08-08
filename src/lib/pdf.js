@@ -1,5 +1,7 @@
 import { jsPDF } from 'jspdf'
+import QRCode from 'qrcode'
 import { departmentSummary } from './departments'
+import { formatAge, maskPhone, BILLING_TYPE_LABELS } from './patients'
 
 // The "where do I go" strip. Patients read this at the counter, so it prints
 // boxed and bold rather than folded into the body text.
@@ -186,49 +188,166 @@ export function buildPrescriptionPDF({ facility, patient, visit, doctor }) {
   return pdf
 }
 
-// OPD parchi — the token slip handed over at booking. Kept to the top half of
-// an A4 sheet so it can be guillotined without losing anything.
-export function buildOpdSlipPDF({ facility, patient, visit }) {
+// Renders the UHID as a QR data URI. Returns null rather than throwing — a
+// missing QR must never stop the counter from printing a slip.
+async function uhidQrDataUrl(uhid) {
+  if (!uhid) return null
+  try {
+    return await QRCode.toDataURL(String(uhid), { width: 240, margin: 0 })
+  } catch {
+    return null
+  }
+}
+
+// Draws a stack of "Label: value" pairs in one column and returns the y it
+// ended on, so the two columns of the patient block can be laid out
+// independently and the taller one decides where the notes area starts.
+function addFieldColumn(pdf, fields, { x, y, labelWidth, colWidth }) {
+  let cursor = y
+  fields.forEach(([label, value]) => {
+    pdf.setFont('helvetica', 'bold')
+    pdf.text(`${label}:`, x, cursor)
+    pdf.setFont('helvetica', 'normal')
+    const lines = pdf.splitTextToSize(String(value ?? '—'), colWidth - labelWidth)
+    pdf.text(lines, x + labelWidth, cursor)
+    cursor += Math.max(lines.length, 1) * 4.6 + 1.4
+  })
+  return cursor
+}
+
+// OPD parchi, modelled on a government hospital out-patient record: routing
+// strip at the top for the patient, a two-column record block for the clerk,
+// and the rest of the sheet left blank for the doctor to write on by hand.
+//
+// Async because the QR has to be rasterised before it can be placed.
+export async function buildOpdSlipPDF({ facility, patient, visit }) {
   const pdf = createPDF()
   const pageWidth = pdf.internal.pageSize.getWidth()
+  const pageHeight = pdf.internal.pageSize.getHeight()
   const margin = 15
+  const contentWidth = pageWidth - margin * 2
+
   let y = addHeader(pdf, facility)
 
-  pdf.setFontSize(11)
-  pdf.setFont('helvetica', 'bold')
-  pdf.text('OPD SLIP', pageWidth / 2, y, { align: 'center' })
-  y += 9
+  // Room / wing / token strip. The token is the one thing a waiting patient
+  // looks for, so it is the largest thing on the page.
+  pdf.setFontSize(9)
+  pdf.setFont('helvetica', 'normal')
+  pdf.text(`Consulting Room No.: ${visit?.roomNumber || '—'}`, margin, y + 4)
+  pdf.text(`Wing: ${visit?.wing || '—'}`, pageWidth / 2, y + 4, { align: 'center' })
 
-  if (visit?.tokenNumber != null) {
-    pdf.setFontSize(26)
-    pdf.text(`Token ${visit.tokenNumber}`, pageWidth / 2, y + 4, { align: 'center' })
-    y += 14
+  pdf.setFontSize(8)
+  pdf.text('TOKEN NO.', pageWidth - margin, y, { align: 'right' })
+  pdf.setFontSize(22)
+  pdf.setFont('helvetica', 'bold')
+  pdf.text(String(visit?.tokenNumber ?? '—'), pageWidth - margin, y + 8, { align: 'right' })
+  pdf.setFont('helvetica', 'normal')
+  y += 13
+
+  pdf.setFontSize(10)
+  pdf.setFont('helvetica', 'bold')
+  pdf.text(
+    [visit?.departmentName, visit?.unit && `Unit: ${visit.unit}`].filter(Boolean).join('  —  ') || '—',
+    margin,
+    y
+  )
+  pdf.setFont('helvetica', 'normal')
+  if (visit?.opdDays) {
+    pdf.setFontSize(8.5)
+    pdf.text(`OPD Days: ${visit.opdDays}`, margin, y + 4.5)
+    y += 4.5
   }
+  y += 6
 
   y = addRoutingBlock(pdf, visit, { y })
 
-  pdf.setFontSize(9)
+  // "OUT PATIENT RECORD" divider.
+  pdf.setLineWidth(0.4)
+  pdf.line(margin, y, pageWidth - margin, y)
+  pdf.setFontSize(10)
+  pdf.setFont('helvetica', 'bold')
+  pdf.text('OUT PATIENT RECORD', pageWidth / 2, y + 5.5, { align: 'center' })
+  pdf.line(margin, y + 8, pageWidth - margin, y + 8)
   pdf.setFont('helvetica', 'normal')
-  const rows = [
-    ['Patient', patient?.name || visit?.patientName || '—'],
-    ['UHID', patient?.uhid || visit?.patientUhid || '—'],
-    ['Phone', patient?.phone || '—'],
-    ['Appointment', visit?.visitDate
+  y += 14
+
+  // Two-column record block. The QR sits at the top of the right column.
+  const colWidth = contentWidth / 2 - 4
+  const rightX = margin + contentWidth / 2 + 4
+  const qr = await uhidQrDataUrl(patient?.uhid || visit?.patientUhid)
+  let rightY = y
+  if (qr) {
+    const qrSize = 24
+    pdf.addImage(qr, 'PNG', pageWidth - margin - qrSize, rightY, qrSize, qrSize)
+    pdf.setFontSize(7)
+    pdf.text('Scan for UHID', pageWidth - margin - qrSize / 2, rightY + qrSize + 3, { align: 'center' })
+    rightY += qrSize + 7
+  }
+
+  pdf.setFontSize(8.5)
+  const leftEnd = addFieldColumn(pdf, [
+    ['Name', patient?.name || visit?.patientName],
+    ['Department', visit?.departmentName],
+    ['Dept. Reg. No.', visit?.deptRegNo],
+    ['Date of Regn.', visit?.visitDate
       ? new Date(visit.visitDate).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
-      : '—'],
-    ['Department', visit?.departmentName || '—'],
-    ['Doctor', visit?.doctorName ? `Dr. ${visit.doctorName}` : '—'],
-    ['Floor', visit?.floor || '—'],
-    ['Room No.', visit?.roomNumber || '—'],
-    ['Chief Complaint', visit?.chiefComplaint || '—'],
-  ]
-  rows.forEach(([label, value]) => {
+      : null],
+    ['Unit', visit?.unit],
+    ['Age', formatAge(patient?.dob)],
+    ['Billing Type', BILLING_TYPE_LABELS[visit?.billingType] || visit?.billingType],
+    ['Mobile', maskPhone(patient?.phone)],
+    ['Address', [patient?.address, patient?.city, patient?.pincode].filter(Boolean).join(', ')],
+  ], { x: margin, y, labelWidth: 26, colWidth })
+
+  const rightEnd = addFieldColumn(pdf, [
+    ['UHID', patient?.uhid || visit?.patientUhid],
+    ['ABHA ID', patient?.abhaId],
+    ['Fee', visit?.feeAmount != null ? `Rs. ${visit.feeAmount}` : null],
+    ['Sex', patient?.gender ? patient.gender[0].toUpperCase() + patient.gender.slice(1) : null],
+    [patient?.relationType || 'S/O', patient?.guardianName],
+    ['Email', patient?.email],
+    ['Occupation', patient?.occupation],
+    ['Prepared By', visit?.preparedByName || visit?.registeredByName],
+  ], { x: rightX, y: rightY, labelWidth: 26, colWidth })
+
+  y = Math.max(leftEnd, rightEnd) + 3
+
+  if (patient?.patientType === 'mlc') {
     pdf.setFont('helvetica', 'bold')
-    pdf.text(`${label}:`, margin, y)
+    pdf.setTextColor(180, 0, 0)
+    pdf.setFontSize(10)
+    pdf.text('MEDICO-LEGAL CASE (MLC)', margin, y + 2)
+    pdf.setTextColor(0, 0, 0)
     pdf.setFont('helvetica', 'normal')
-    pdf.text(pdf.splitTextToSize(String(value), pageWidth - margin * 2 - 38), margin + 38, y)
-    y += 6
-  })
+    y += 7
+  }
+
+  if (visit?.chiefComplaint) {
+    pdf.setFontSize(8.5)
+    pdf.setFont('helvetica', 'bold')
+    pdf.text('Chief Complaint:', margin, y + 2)
+    pdf.setFont('helvetica', 'normal')
+    pdf.text(pdf.splitTextToSize(visit.chiefComplaint, contentWidth - 30), margin + 30, y + 2)
+    y += 8
+  }
+
+  // Everything below here is deliberately left empty for the doctor's
+  // handwritten notes — faint rules only, no printed content.
+  pdf.setLineWidth(0.3)
+  pdf.line(margin, y, pageWidth - margin, y)
+  y += 6
+  pdf.setFontSize(8)
+  pdf.setFont('helvetica', 'italic')
+  pdf.text("Doctor's Notes / Rx", margin, y)
+  pdf.setFont('helvetica', 'normal')
+  y += 5
+
+  pdf.setDrawColor(200, 200, 200)
+  pdf.setLineWidth(0.15)
+  for (let lineY = y; lineY < pageHeight - 20; lineY += 8) {
+    pdf.line(margin, lineY, pageWidth - margin, lineY)
+  }
+  pdf.setDrawColor(0, 0, 0)
 
   addFooter(pdf, { text: 'Please show this slip at the department reception.' })
   return pdf
