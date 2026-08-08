@@ -1,19 +1,24 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '@hooks/useAuth'
 import { useFacility } from '@hooks/useFacility'
 import { addDocument, subscribeToCollection, incrementCounter } from '@lib/db'
+import {
+  departmentsForFlow, doctorsInDepartment, departmentSnapshot, departmentLocation,
+} from '@lib/departments'
 import Modal from '@components/Modal'
-import { Calendar, Clock, User, Stethoscope } from 'lucide-react'
+import { Calendar, Clock, User, Stethoscope, Network, MapPin } from 'lucide-react'
 
 export default function QuickBookModal({ isOpen, onClose, prefill = {}, doctors = [] }) {
   const { user, staffProfile } = useAuth()
   const { facilityId } = useFacility()
   const [patients, setPatients] = useState([])
+  const [departments, setDepartments] = useState([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   const [form, setForm] = useState({
     patientId: '',
+    departmentId: '',
     doctorId: prefill.doctorId || '',
     date: prefill.date || new Date().toISOString().split('T')[0],
     hour: prefill.hour || 9,
@@ -22,13 +27,41 @@ export default function QuickBookModal({ isOpen, onClose, prefill = {}, doctors 
 
   useEffect(() => {
     if (!facilityId) return
-    return subscribeToCollection(`facilities/${facilityId}/patients`, setPatients)
+    const unsubs = [
+      subscribeToCollection(`facilities/${facilityId}/patients`, setPatients),
+      subscribeToCollection(`facilities/${facilityId}/departments`, setDepartments),
+    ]
+    return () => unsubs.forEach((fn) => fn())
   }, [facilityId])
+
+  const opdDepartments = useMemo(() => departmentsForFlow(departments, 'opd'), [departments])
+  const selectedDept = useMemo(
+    () => departments.find((d) => d.id === form.departmentId) || null,
+    [departments, form.departmentId]
+  )
+  const deptDoctors = useMemo(
+    () => doctorsInDepartment(doctors, form.departmentId),
+    [doctors, form.departmentId]
+  )
+
+  // A doctor prefilled from the calendar carries their department with them, so
+  // the dropdown opens already narrowed instead of blank.
+  useEffect(() => {
+    if (!prefill.doctorId || form.departmentId) return
+    const doc = doctors.find((d) => d.id === prefill.doctorId)
+    if (doc?.departmentId) setForm((f) => ({ ...f, departmentId: doc.departmentId }))
+  }, [prefill.doctorId, doctors, form.departmentId])
 
   const update = (field) => (e) => setForm({ ...form, [field]: e.target.value })
 
+  // Changing department invalidates any doctor picked from the previous one.
+  const handleDepartmentChange = (e) => {
+    setForm({ ...form, departmentId: e.target.value, doctorId: '' })
+  }
+
   const handleBook = async () => {
     if (!form.patientId) { setError('Select a patient.'); return }
+    if (!form.departmentId) { setError('Select a department.'); return }
     if (!form.doctorId) { setError('Select a doctor.'); return }
 
     setSaving(true)
@@ -45,6 +78,9 @@ export default function QuickBookModal({ isOpen, onClose, prefill = {}, doctors 
         patientUhid: patient?.uhid || '',
         doctorId: form.doctorId,
         doctorName: doctor?.name || '',
+        // Snapshot so a later department rename or move never rewrites a
+        // parchi the patient is already holding.
+        ...departmentSnapshot(selectedDept),
         tokenNumber,
         status: 'booked',
         visitDate,
@@ -79,15 +115,53 @@ export default function QuickBookModal({ isOpen, onClose, prefill = {}, doctors 
         </select>
       </div>
 
-      <div className="form-group">
-        <label><Stethoscope size={14} /> Doctor *</label>
-        <select value={form.doctorId} onChange={update('doctorId')}>
-          <option value="">Select doctor...</option>
-          {doctors.map((d) => (
-            <option key={d.id} value={d.id}>{d.name}{d.department ? ` — ${d.department}` : ''}</option>
-          ))}
-        </select>
+      <div className="form-row">
+        <div className="form-group">
+          <label><Network size={14} /> Department *</label>
+          <select value={form.departmentId} onChange={handleDepartmentChange}>
+            <option value="">
+              {opdDepartments.length ? 'Select department...' : 'No OPD departments configured'}
+            </option>
+            {opdDepartments.map((d) => (
+              <option key={d.id} value={d.id}>{d.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="form-group">
+          <label><Stethoscope size={14} /> Doctor *</label>
+          <select value={form.doctorId} onChange={update('doctorId')} disabled={!form.departmentId}>
+            <option value="">
+              {!form.departmentId
+                ? 'Select a department first'
+                : deptDoctors.length
+                  ? 'Select doctor...'
+                  : 'No doctors in this department'}
+            </option>
+            {deptDoctors.map((d) => (
+              <option key={d.id} value={d.id}>{d.name}</option>
+            ))}
+          </select>
+        </div>
       </div>
+
+      {selectedDept && (
+        <div className="form-row">
+          <div className="form-group">
+            <label><MapPin size={14} /> Floor</label>
+            <input value={departmentLocation(selectedDept) || '—'} readOnly disabled />
+          </div>
+          <div className="form-group">
+            <label>Room No.</label>
+            <input value={selectedDept.roomNumber || '—'} readOnly disabled />
+          </div>
+        </div>
+      )}
+
+      {opdDepartments.length === 0 && (
+        <p className="settings-hint">
+          Add departments under Administration → Facility Settings → Departments before booking.
+        </p>
+      )}
 
       <div className="form-row">
         <div className="form-group">

@@ -4,8 +4,10 @@ import { useAuth } from '@hooks/useAuth'
 import { useFacility } from '@hooks/useFacility'
 import { usePermission } from '@hooks/usePermission'
 import {
-  subscribeToDocument, subscribeToCollection, addDocument, updateDocument,
+  subscribeToDocument, subscribeToCollection, addDocument, updateDocument, getDocument,
 } from '@lib/db'
+import { buildIpdAdmissionSlipPDF } from '@lib/pdf'
+import { departmentSummary } from '@lib/departments'
 import { dischargePatient, administerDose } from '@lib/ipd'
 import { canBill } from '@lib/billing'
 import { formatDate, formatINR } from '@lib/utils'
@@ -13,14 +15,14 @@ import { useToast } from '@components/Toast'
 import Modal from '@components/Modal'
 import {
   ChevronLeft, BedDouble, NotebookPen, Pill, ArrowRightLeft, LogOut, Send,
-  Plus, CheckCircle2, Check,
+  Plus, CheckCircle2, Check, Printer,
 } from 'lucide-react'
 
 export default function AdmissionDetail() {
   const { admissionId } = useParams()
   const navigate = useNavigate()
   const { user, staffProfile } = useAuth()
-  const { facilityId } = useFacility()
+  const { facilityId, facilityConfig } = useFacility()
   const { can } = usePermission()
   const toast = useToast()
   const role = staffProfile?.role
@@ -52,6 +54,18 @@ export default function AdmissionDetail() {
   }, [facilityId, admissionId])
 
   const staffName = (uid) => staff.find((s) => s.id === uid)?.name || 'staff'
+
+  const handlePrintSlip = async () => {
+    const patient = admission?.patientId
+      ? await getDocument(`facilities/${facilityId}/patients/${admission.patientId}`)
+      : null
+    const pdf = buildIpdAdmissionSlipPDF({
+      facility: facilityConfig || {},
+      patient,
+      admission: { ...admission, id: admissionId },
+    })
+    pdf.save(`Admission-Slip-${admission?.patientUhid || admissionId}.pdf`)
+  }
 
   const addNote = async () => {
     if (!noteText.trim()) return
@@ -96,6 +110,11 @@ export default function AdmissionDetail() {
           <BedDouble size={22} /> {admission.patientName}
           <span className={`badge ${isActive ? 'badge-warning' : 'badge-success'}`}>{admission.status}</span>
         </h2>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button className="btn btn-outline" onClick={handlePrintSlip}>
+            <Printer size={14} /> Admission Slip
+          </button>
+        </div>
         {isActive && (
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             {canUpdate && (
@@ -116,7 +135,12 @@ export default function AdmissionDetail() {
         <div>
           <span className="font-mono">{admission.patientUhid}</span>
           <span> — {admission.wardName} / {admission.bedName}</span>
-          <span> — Dr. {admission.doctorName}</span>
+          <span> — {departmentSummary({
+            departmentName: admission.departmentName,
+            doctorName: admission.doctorName,
+            floor: admission.floor,
+            roomNumber: admission.roomNumber,
+          }) || `Dr. ${admission.doctorName}`}</span>
         </div>
         <div>
           <span>Admitted {formatDate(admission.admissionDate, 'datetime')}</span>

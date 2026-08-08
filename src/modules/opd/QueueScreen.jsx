@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@hooks/useAuth'
 import { useFacility } from '@hooks/useFacility'
-import { subscribeToCollection, updateDocument } from '@lib/db'
+import { subscribeToCollection, updateDocument, getDocument } from '@lib/db'
 import { toISODate } from '@lib/utils'
-import { ListOrdered, CheckCircle, Clock, UserCheck, XCircle } from 'lucide-react'
+import { buildOpdSlipPDF } from '@lib/pdf'
+import { departmentSummary } from '@lib/departments'
+import { ListOrdered, CheckCircle, Clock, UserCheck, XCircle, Printer } from 'lucide-react'
 
 const STATUS_ICONS = {
   booked: Clock,
@@ -17,7 +19,7 @@ const STATUS_ICONS = {
 export default function QueueScreen() {
   const navigate = useNavigate()
   const { user, staffProfile } = useAuth()
-  const { facilityId } = useFacility()
+  const { facilityId, facilityConfig } = useFacility()
   const [visits, setVisits] = useState([])
   const [staff, setStaff] = useState([])
   const [selectedDoctor, setSelectedDoctor] = useState('all')
@@ -62,6 +64,14 @@ export default function QueueScreen() {
       facilityId,
       audit: { action: 'patient_no_show', module: 'opd' },
     })
+  }
+
+  const handlePrintSlip = async (visit) => {
+    const patient = visit.patientId
+      ? await getDocument(`facilities/${facilityId}/patients/${visit.patientId}`)
+      : null
+    const pdf = buildOpdSlipPDF({ facility: facilityConfig || {}, patient, visit })
+    pdf.save(`OPD-Slip-${visit.patientUhid || visit.tokenNumber || visit.id}.pdf`)
   }
 
   const statusCounts = {
@@ -112,7 +122,14 @@ export default function QueueScreen() {
                     <span className="font-mono">{visit.patientUhid || ''}</span>
                     {visit.chiefComplaint && <span> — {visit.chiefComplaint}</span>}
                   </div>
-                  <div className="queue-doctor-name">Dr. {visit.doctorName || 'Unassigned'}</div>
+                  <div className="queue-doctor-name">
+                    {departmentSummary({
+                      departmentName: visit.departmentName,
+                      doctorName: visit.doctorName,
+                      floor: visit.floor,
+                      roomNumber: visit.roomNumber,
+                    }) || `Dr. ${visit.doctorName || 'Unassigned'}`}
+                  </div>
                 </div>
                 <div className="queue-status">
                   <span className={`badge badge-${visit.status === 'completed' ? 'success' : visit.status === 'checked_in' || visit.status === 'in_progress' ? 'warning' : visit.status === 'no_show' ? 'danger' : 'muted'}`}>
@@ -120,6 +137,13 @@ export default function QueueScreen() {
                   </span>
                 </div>
                 <div className="queue-actions">
+                  <button
+                    className="btn btn-outline btn-sm"
+                    onClick={() => handlePrintSlip(visit)}
+                    title="Print OPD slip"
+                  >
+                    <Printer size={14} /> Slip
+                  </button>
                   {visit.status === 'booked' && (
                     <>
                       <button className="btn btn-primary btn-sm" onClick={() => handleCheckIn(visit)}>Check In</button>

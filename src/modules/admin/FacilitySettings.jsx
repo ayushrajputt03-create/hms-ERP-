@@ -6,8 +6,12 @@ import { useToast } from '@components/Toast'
 import {
   FACILITY_TYPE_LABELS, MODULE_LABELS, INDIAN_STATES,
 } from '@lib/constants'
-import { Save, Building2, Settings, Shield, IndianRupee } from 'lucide-react'
+import { Save, Building2, Settings, Shield, IndianRupee, Network } from 'lucide-react'
 import TariffMaster from './TariffMaster'
+import DepartmentsManager from './DepartmentsManager'
+
+// Tabs that manage their own records and so have no page-level Save button.
+const SELF_SAVING_TABS = ['tariffs', 'departments']
 
 export default function FacilitySettings() {
   const { facilityId, facilityConfig } = useFacility()
@@ -60,7 +64,7 @@ export default function FacilitySettings() {
     <div className="settings-page">
       <div className="page-header">
         <h2>Facility Settings</h2>
-        {tab !== 'tariffs' && (
+        {!SELF_SAVING_TABS.includes(tab) && (
           <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
             <Save size={16} /> {saving ? 'Saving...' : 'Save Changes'}
           </button>
@@ -80,9 +84,13 @@ export default function FacilitySettings() {
         <button className={`tab ${tab === 'tariffs' ? 'active' : ''}`} onClick={() => setTab('tariffs')}>
           <IndianRupee size={16} /> Tariff Master
         </button>
+        <button className={`tab ${tab === 'departments' ? 'active' : ''}`} onClick={() => setTab('departments')}>
+          <Network size={16} /> Departments
+        </button>
       </div>
 
       {tab === 'tariffs' && <TariffMaster />}
+      {tab === 'departments' && <DepartmentsManager />}
 
       {tab === 'general' && (
         <div className="settings-section">

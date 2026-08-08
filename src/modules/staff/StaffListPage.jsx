@@ -4,6 +4,7 @@ import { useAuth } from '@hooks/useAuth'
 import { useFirestoreCollection } from '@hooks/useFirestoreCollection'
 import { addDocument, updateDocument, deleteDocument } from '@lib/db'
 import { ROLE_LABELS, ROLES } from '@lib/constants'
+import { isActive as isDeptActive, departmentLocation } from '@lib/departments'
 import DataTable from '@components/DataTable'
 import Modal from '@components/Modal'
 import { useToast } from '@components/Toast'
@@ -20,21 +21,40 @@ export default function StaffListPage() {
     facilityId ? `facilities/${facilityId}/staff` : null
   )
 
+  const { data: departments } = useFirestoreCollection(
+    facilityId ? `facilities/${facilityId}/departments` : null
+  )
+
   const [form, setForm] = useState({
-    name: '', email: '', phone: '', role: 'receptionist', department: '', status: 'active',
+    name: '', email: '', phone: '', role: 'receptionist', departmentId: '', status: 'active',
     registrationNumber: '', qualification: '',
   })
 
   const resetForm = () => {
-    setForm({ name: '', email: '', phone: '', role: 'receptionist', department: '', status: 'active', registrationNumber: '', qualification: '' })
+    setForm({ name: '', email: '', phone: '', role: 'receptionist', departmentId: '', status: 'active', registrationNumber: '', qualification: '' })
     setEditing(null)
     setShowForm(false)
   }
+
+  const deptById = (id) => (departments || []).find((d) => d.id === id) || null
+  const selectedDept = deptById(form.departmentId)
 
   const handleSave = async () => {
     if (!form.name || !form.email || !form.role) {
       toast.error('Name, email, and role are required.')
       return
+    }
+    if (form.role === ROLES.DOCTOR && !form.departmentId) {
+      toast.error('Assign the doctor to a department.')
+      return
+    }
+
+    // `department` is the denormalised name so lists and older records that read
+    // it keep rendering; `departmentId` is the link the dropdowns filter on.
+    const payload = {
+      ...form,
+      departmentId: form.departmentId || null,
+      department: selectedDept?.name || '',
     }
 
     const auditCtx = {
@@ -44,13 +64,13 @@ export default function StaffListPage() {
 
     try {
       if (editing) {
-        await updateDocument(`facilities/${facilityId}/staff/${editing.id}`, form, {
+        await updateDocument(`facilities/${facilityId}/staff/${editing.id}`, payload, {
           ...auditCtx,
           audit: { action: 'update', module: 'staff', entityType: 'staff', entityId: editing.id, description: `Updated staff: ${form.name}` },
         })
         toast.success('Staff updated.')
       } else {
-        await addDocument(`facilities/${facilityId}/staff`, form, {
+        await addDocument(`facilities/${facilityId}/staff`, payload, {
           ...auditCtx,
           audit: { action: 'create', module: 'staff', entityType: 'staff', description: `Added staff: ${form.name}` },
         })
@@ -69,7 +89,7 @@ export default function StaffListPage() {
       email: staff.email || '',
       phone: staff.phone || '',
       role: staff.role || 'receptionist',
-      department: staff.department || '',
+      departmentId: staff.departmentId || '',
       status: staff.status || 'active',
       registrationNumber: staff.registrationNumber || '',
       qualification: staff.qualification || '',
@@ -99,7 +119,15 @@ export default function StaffListPage() {
     { header: 'Email', accessor: 'email' },
     { header: 'Phone', accessor: 'phone' },
     { header: 'Role', accessor: 'role', cell: (r) => ROLE_LABELS[r.role] || r.role },
-    { header: 'Department', accessor: 'department' },
+    { header: 'Department', accessor: 'department', cell: (r) => {
+      const dept = deptById(r.departmentId)
+      return dept?.name || r.department || '—'
+    }},
+    { header: 'Location', cell: (r) => {
+      const dept = deptById(r.departmentId)
+      if (!dept) return '—'
+      return [departmentLocation(dept), dept.roomNumber].filter(Boolean).join(' • ') || '—'
+    }},
     { header: 'Status', accessor: 'status', cell: (r) => (
       <span className={`badge badge-${r.status === 'active' ? 'success' : 'muted'}`}>
         {r.status}
@@ -164,8 +192,29 @@ export default function StaffListPage() {
               </select>
             </div>
             <div className="form-group">
-              <label>Department</label>
-              <input value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} placeholder="e.g. General Medicine" />
+              <label>Department {form.role === ROLES.DOCTOR && '*'}</label>
+              <select
+                value={form.departmentId}
+                onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
+              >
+                <option value="">
+                  {(departments || []).length ? 'Select department...' : 'No departments configured'}
+                </option>
+                {(departments || []).filter(isDeptActive).map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+              {selectedDept && (
+                <span className="settings-hint">
+                  {[departmentLocation(selectedDept), selectedDept.roomNumber]
+                    .filter(Boolean).join(' • ') || 'No location set for this department'}
+                </span>
+              )}
+              {(departments || []).length === 0 && (
+                <span className="settings-hint">
+                  Add departments under Administration → Facility Settings → Departments.
+                </span>
+              )}
             </div>
           </div>
           {form.role === 'doctor' && (

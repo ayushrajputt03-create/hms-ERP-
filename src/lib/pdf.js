@@ -1,4 +1,35 @@
 import { jsPDF } from 'jspdf'
+import { departmentSummary } from './departments'
+
+// The "where do I go" strip. Patients read this at the counter, so it prints
+// boxed and bold rather than folded into the body text.
+function addRoutingBlock(pdf, record, { y, doctor }) {
+  const line = departmentSummary({
+    departmentName: record?.departmentName,
+    doctorName: doctor?.name || record?.doctorName,
+    floor: record?.floor,
+    roomNumber: record?.roomNumber,
+    bedName: record?.bedName,
+  })
+  if (!line) return y
+
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const margin = 15
+  pdf.setFillColor(240, 245, 252)
+  pdf.setDrawColor(5, 38, 89)
+  pdf.setLineWidth(0.3)
+  pdf.rect(margin, y, pageWidth - margin * 2, 9, 'FD')
+
+  pdf.setFontSize(9.5)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setTextColor(5, 38, 89)
+  pdf.text(line, margin + 3, y + 6)
+  pdf.setTextColor(0, 0, 0)
+  pdf.setFont('helvetica', 'normal')
+  pdf.setDrawColor(0, 0, 0)
+
+  return y + 14
+}
 
 export function createPDF({ orientation = 'portrait', unit = 'mm', format = 'a4' } = {}) {
   return new jsPDF({ orientation, unit, format })
@@ -68,6 +99,8 @@ export function buildPrescriptionPDF({ facility, patient, visit, doctor }) {
   left.forEach((line, i) => pdf.text(line, margin, y + i * 5))
   right.forEach((line, i) => pdf.text(line, pageWidth - margin, y + i * 5, { align: 'right' }))
   y += Math.max(left.length, right.length) * 5 + 4
+
+  y = addRoutingBlock(pdf, visit, { y, doctor })
 
   pdf.setLineWidth(0.2)
   pdf.line(margin, y, pageWidth - margin, y)
@@ -148,6 +181,105 @@ export function buildPrescriptionPDF({ facility, patient, visit, doctor }) {
     pdf.setFontSize(8)
     pdf.text(doctor.qualification, pageWidth - margin, signY + 10, { align: 'right' })
   }
+
+  addFooter(pdf)
+  return pdf
+}
+
+// OPD parchi — the token slip handed over at booking. Kept to the top half of
+// an A4 sheet so it can be guillotined without losing anything.
+export function buildOpdSlipPDF({ facility, patient, visit }) {
+  const pdf = createPDF()
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const margin = 15
+  let y = addHeader(pdf, facility)
+
+  pdf.setFontSize(11)
+  pdf.setFont('helvetica', 'bold')
+  pdf.text('OPD SLIP', pageWidth / 2, y, { align: 'center' })
+  y += 9
+
+  if (visit?.tokenNumber != null) {
+    pdf.setFontSize(26)
+    pdf.text(`Token ${visit.tokenNumber}`, pageWidth / 2, y + 4, { align: 'center' })
+    y += 14
+  }
+
+  y = addRoutingBlock(pdf, visit, { y })
+
+  pdf.setFontSize(9)
+  pdf.setFont('helvetica', 'normal')
+  const rows = [
+    ['Patient', patient?.name || visit?.patientName || '—'],
+    ['UHID', patient?.uhid || visit?.patientUhid || '—'],
+    ['Phone', patient?.phone || '—'],
+    ['Appointment', visit?.visitDate
+      ? new Date(visit.visitDate).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+      : '—'],
+    ['Department', visit?.departmentName || '—'],
+    ['Doctor', visit?.doctorName ? `Dr. ${visit.doctorName}` : '—'],
+    ['Floor', visit?.floor || '—'],
+    ['Room No.', visit?.roomNumber || '—'],
+    ['Chief Complaint', visit?.chiefComplaint || '—'],
+  ]
+  rows.forEach(([label, value]) => {
+    pdf.setFont('helvetica', 'bold')
+    pdf.text(`${label}:`, margin, y)
+    pdf.setFont('helvetica', 'normal')
+    pdf.text(pdf.splitTextToSize(String(value), pageWidth - margin * 2 - 38), margin + 38, y)
+    y += 6
+  })
+
+  addFooter(pdf, { text: 'Please show this slip at the department reception.' })
+  return pdf
+}
+
+// IPD admission slip — carries the ward/bed alongside the department location so
+// visitors and ward staff can find the patient from one piece of paper.
+export function buildIpdAdmissionSlipPDF({ facility, patient, admission }) {
+  const pdf = createPDF()
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const margin = 15
+  let y = addHeader(pdf, facility)
+
+  pdf.setFontSize(11)
+  pdf.setFont('helvetica', 'bold')
+  pdf.text('ADMISSION SLIP', pageWidth / 2, y, { align: 'center' })
+  y += 9
+
+  y = addRoutingBlock(pdf, admission, { y })
+
+  pdf.setFontSize(9)
+  pdf.setFont('helvetica', 'normal')
+  const rows = [
+    ['Patient', patient?.name || admission?.patientName || '—'],
+    ['UHID', patient?.uhid || admission?.patientUhid || '—'],
+    ['Admission No.', admission?.id || '—'],
+    ['Admitted On', admission?.admissionDate
+      ? new Date(admission.admissionDate).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+      : '—'],
+    ['Department', admission?.departmentName || '—'],
+    ['Attending Doctor', admission?.doctorName ? `Dr. ${admission.doctorName}` : '—'],
+    ['Floor', admission?.floor || '—'],
+    ['Room No.', admission?.roomNumber || '—'],
+    ['Ward', admission?.wardName || '—'],
+    ['Bed', admission?.bedName || '—'],
+    ['Bed Charge / Day', admission?.ratePerDay != null ? `Rs. ${admission.ratePerDay}` : '—'],
+    ['Admission Diagnosis', admission?.diagnosis || '—'],
+  ]
+  rows.forEach(([label, value]) => {
+    pdf.setFont('helvetica', 'bold')
+    pdf.text(`${label}:`, margin, y)
+    pdf.setFont('helvetica', 'normal')
+    pdf.text(pdf.splitTextToSize(String(value), pageWidth - margin * 2 - 45), margin + 45, y)
+    y += 6
+  })
+
+  const signY = Math.max(y + 20, pdf.internal.pageSize.getHeight() - 40)
+  pdf.line(margin, signY, margin + 55, signY)
+  pdf.text('Attendant Signature', margin, signY + 5)
+  pdf.line(pageWidth - margin - 55, signY, pageWidth - margin, signY)
+  pdf.text('Admitting Officer', pageWidth - margin, signY + 5, { align: 'right' })
 
   addFooter(pdf)
   return pdf
