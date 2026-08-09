@@ -386,6 +386,13 @@ export async function buildOpdSlipPDF({ facility, patient, visit }) {
   const leftRows = [
     ['Name', patient?.name || visit?.patientName],
     ['Department', visit?.departmentName],
+    // Snapshotted onto the visit at registration, so a department that later
+    // moves floors does not rewrite a slip already handed over. "Not assigned"
+    // rather than blank: an empty line reads as a printing fault, and a patient
+    // sent to find an unlabelled room will come back to the counter.
+    ['Floor', visit?.floor || 'Not assigned'],
+    ['Wing', visit?.wing || 'Not assigned'],
+    ['Room No.', visit?.roomNumber || 'Not assigned'],
     ['Dept No.', visit?.deptRegNo],
     ['Date of Registration', visit?.visitDate
       ? new Date(visit.visitDate).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })

@@ -13,13 +13,16 @@ export async function getPublicBookingInfo(facilityId) {
   return data
 }
 
+// No doctor or department argument by design. Self-booking collects who the
+// patient is and issues a token; which clinician they see is a triage decision
+// made by staff at the counter (hms_assign_qr_visit). The old signature took a
+// doctorId straight off the public page.
 export async function bookOpdVisitPublic({
-  facilityId, doctorId, patientName, patientPhone, patientAge, patientGender, reason,
+  facilityId, patientName, patientPhone, patientAge, patientGender, reason,
 }) {
   if (!supabase) throw new Error('Supabase not configured')
   const { data, error } = await supabase.rpc('book_opd_visit_public', {
     p_facility_id: facilityId,
-    p_doctor_id: doctorId,
     p_patient_name: patientName,
     p_patient_phone: patientPhone,
     p_patient_age: patientAge || null,
@@ -37,8 +40,6 @@ const BOOKING_ERRORS = {
   OPD_DISABLED: 'Online booking is not available at this hospital. Please visit the reception desk.',
   NAME_REQUIRED: 'Please enter the patient’s name.',
   INVALID_PHONE: 'Please enter a valid 10-digit mobile number.',
-  DOCTOR_NOT_FOUND: 'That doctor is no longer available. Please pick another.',
-  DOCTOR_NOT_AVAILABLE: 'That doctor is not currently taking bookings. Please pick another.',
 }
 
 export function bookingErrorMessage(err) {

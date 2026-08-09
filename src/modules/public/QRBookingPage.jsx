@@ -13,7 +13,7 @@ export default function QRBookingPage() {
   const [loading, setLoading] = useState(true)
 
   const [form, setForm] = useState({
-    name: '', phone: '', age: '', gender: 'male', doctorId: '', reason: '',
+    name: '', phone: '', age: '', gender: 'male', reason: '',
   })
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -36,14 +36,11 @@ export default function QRBookingPage() {
       setError('Please enter a valid 10-digit mobile number.')
       return
     }
-    if (!form.doctorId) { setError('Please select a doctor.'); return }
-
     setSubmitting(true)
     setError('')
     try {
       const visit = await bookOpdVisitPublic({
         facilityId,
-        doctorId: form.doctorId,
         patientName: form.name.trim(),
         patientPhone: form.phone.trim(),
         patientAge: form.age ? Number(form.age) : null,
@@ -87,7 +84,8 @@ export default function QRBookingPage() {
             <span className="registration-token-label">Your Token No.</span>
             <span className="registration-token-value">{result.tokenNumber}</span>
           </div>
-          <p className="qr-booking-doctor">Dr. {result.doctorName}{result.departmentName ? ` — ${result.departmentName}` : ''}</p>
+          {/* No doctor to show yet — that is assigned at the counter. */}
+          <p className="qr-booking-doctor">Department &amp; doctor will be assigned at reception</p>
           {typeof result.waitingAhead === 'number' && (
             <p className="qr-booking-wait">
               {result.waitingAhead > 0
@@ -96,7 +94,7 @@ export default function QRBookingPage() {
             </p>
           )}
           <p className="qr-booking-note">Please show this token number at the reception counter to check in.</p>
-          <button className="btn btn-outline" onClick={() => { setResult(null); setForm({ name: '', phone: '', age: '', gender: 'male', doctorId: '', reason: '' }) }}>
+          <button className="btn btn-outline" onClick={() => { setResult(null); setForm({ name: '', phone: '', age: '', gender: 'male', reason: '' }) }}>
             Book Another Patient
           </button>
         </div>
@@ -148,25 +146,26 @@ export default function QRBookingPage() {
             </div>
           </div>
 
+          {/* The doctor dropdown that used to sit here has been removed. A
+              patient cannot see who is on leave, who is already overbooked or
+              which department their complaint belongs to, so choosing a
+              consultant was never really theirs to make. Reception assigns
+              department and doctor when this token is presented. */}
           <div className="form-group">
-            <label><Stethoscope size={16} /> Doctor / Department *</label>
-            <select value={form.doctorId} onChange={update('doctorId')}>
-              <option value="">Select doctor...</option>
-              {(info?.doctors || []).map((d) => (
-                <option key={d.id} value={d.id}>Dr. {d.name}{d.department ? ` — ${d.department}` : ''}</option>
-              ))}
-            </select>
-            {(info?.doctors || []).length === 0 && (
-              <p className="field-hint">No doctors are currently available for booking. Please visit the reception desk.</p>
-            )}
-          </div>
-
-          <div className="form-group">
-            <label>Reason for Visit (optional)</label>
+            <label><Stethoscope size={16} /> Reason for Visit (optional)</label>
             <input value={form.reason} onChange={update('reason')} placeholder="e.g. fever, follow-up" />
+            <p className="field-hint">
+              Reception will assign your department and doctor when you check in.
+            </p>
           </div>
 
-          <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={submitting || (info?.doctors || []).length === 0}>
+          {info?.accepting === false && (
+            <p className="field-hint">
+              This hospital is not taking online tokens right now. Please visit the reception desk.
+            </p>
+          )}
+
+          <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={submitting || info?.accepting === false}>
             {submitting ? 'Booking...' : 'Get My Token'}
           </button>
         </form>

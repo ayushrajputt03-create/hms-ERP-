@@ -7,6 +7,7 @@ import { subscribeToCollection } from '@lib/db'
 import { formatDate, toISODate } from '@lib/utils'
 import QuickBookModal from './QuickBookModal'
 import SelfCheckinQR from './SelfCheckinQR'
+import OpdFootfallCard from './OpdFootfallCard'
 import {
   Stethoscope, ChevronLeft, ChevronRight, Plus, Calendar, Clock, UserPlus, ListOrdered,
 } from 'lucide-react'
@@ -103,6 +104,8 @@ export default function AppointmentCalendar() {
           )}
         </div>
       </div>
+
+      <OpdFootfallCard />
 
       <div className="calendar-nav">
         <button className="btn btn-icon" onClick={() => navigate_date(-1)}><ChevronLeft size={18} /></button>

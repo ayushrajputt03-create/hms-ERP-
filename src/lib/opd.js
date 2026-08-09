@@ -81,3 +81,40 @@ export async function getVisitByToken({ tokenNumber, tokenDate }) {
   if (error) throw error
   return data // { tokenNumber, tokenDate, matches: [...] }
 }
+
+// Reception assigns department and doctor to a self-booked (QR) visit. The
+// public booking deliberately leaves both null — this is where the triage
+// decision is actually made, and it runs the same department/doctor validation
+// register_opd_visit does so a QR visit cannot reach a state the counter could
+// not have produced.
+//
+// The token is NOT reissued: the patient is already holding it.
+export async function assignQrVisit({ visitId, departmentId, doctorId }) {
+  if (!supabase) throw new Error('Supabase not configured')
+  const { data, error } = await supabase.rpc('hms_assign_qr_visit', {
+    p_visit_id: visitId,
+    p_department_id: departmentId,
+    p_doctor_id: doctorId,
+  })
+  if (error) throw error
+  return data
+}
+
+const ASSIGN_ERRORS = {
+  VISIT_NOT_FOUND: 'That visit no longer exists.',
+  // Two counters opened the same pending token. Re-allocating would burn a
+  // department register number and leave a gap in the register.
+  VISIT_ALREADY_ASSIGNED: 'This token has already been assigned by another counter.',
+  DEPARTMENT_NOT_FOUND: 'That department no longer exists. Pick another one.',
+  DEPARTMENT_INACTIVE: 'That department is inactive and cannot take registrations.',
+  DEPARTMENT_NOT_OPD: 'That department does not run an OPD.',
+  DOCTOR_NOT_FOUND: 'That doctor no longer exists.',
+  DOCTOR_NOT_IN_DEPARTMENT: 'That doctor is not assigned to the selected department.',
+  NOT_A_FACILITY_MEMBER: 'You do not have access to this facility.',
+}
+
+export function assignErrorMessage(err) {
+  const raw = err?.message || ''
+  const hit = Object.keys(ASSIGN_ERRORS).find((code) => raw.includes(code))
+  return hit ? ASSIGN_ERRORS[hit] : 'Could not assign this token. Please retry.'
+}

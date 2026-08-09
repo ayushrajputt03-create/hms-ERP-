@@ -6,7 +6,10 @@ import { subscribeToCollection, updateDocument, getDocument } from '@lib/db'
 import { toISODate } from '@lib/utils'
 import { buildOpdSlipPDF, printPDF } from "@lib/pdf"
 import { departmentSummary } from '@lib/departments'
+import { assignQrVisit } from '@lib/opd'
 import SelfCheckinQR from './SelfCheckinQR'
+import OpdFootfallCard from './OpdFootfallCard'
+import AssignVisitModal from './AssignVisitModal'
 import { ListOrdered, CheckCircle, Clock, UserCheck, XCircle, Printer, UserPlus, QrCode } from 'lucide-react'
 
 const STATUS_ICONS = {
@@ -24,6 +27,9 @@ export default function QueueScreen() {
   const [visits, setVisits] = useState([])
   const [staff, setStaff] = useState([])
   const [selectedDoctor, setSelectedDoctor] = useState('all')
+  // The QR visit currently being routed by reception, or null.
+  const [assigning, setAssigning] = useState(null)
+  const [departments, setDepartments] = useState([])
   const today = toISODate(new Date())
 
   useEffect(() => {
@@ -36,6 +42,7 @@ export default function QueueScreen() {
       })
       setVisits(todayVisits.sort((a, b) => (a.tokenNumber || 0) - (b.tokenNumber || 0)))
     }))
+    unsubs.push(subscribeToCollection(`facilities/${facilityId}/departments`, setDepartments))
     unsubs.push(subscribeToCollection(`facilities/${facilityId}/staff`, (data) => {
       setStaff(data.filter((s) => s.role === 'doctor' && s.status === 'active'))
     }))
@@ -46,7 +53,10 @@ export default function QueueScreen() {
     ? visits
     : visits.filter((v) => v.doctorId === selectedDoctor)
 
-  const pendingQr = byDoctor.filter((v) => v.bookingSource === 'qr_self' && !v.verified)
+  // Drawn from every visit, not from byDoctor: an unassigned token has no
+  // doctor to filter on, so filtering it by doctor would hide exactly the
+  // patients who are still standing at the counter waiting to be routed.
+  const pendingQr = visits.filter((v) => v.bookingSource === 'qr_self' && !v.verified)
   const filtered = byDoctor.filter((v) => !(v.bookingSource === 'qr_self' && !v.verified))
 
   const handleCheckIn = async (visit) => {
@@ -60,19 +70,16 @@ export default function QueueScreen() {
     })
   }
 
-  // A QR self-booking has no reception-verified identity yet — this is the
-  // one click that both confirms the walk-in matches the token and moves
-  // them into the normal checked-in flow, same as a staff-registered visit.
-  const handleVerifyQr = async (visit) => {
-    await updateDocument(`facilities/${facilityId}/opdVisits/${visit.id}`, {
-      verified: true,
-      status: 'checked_in',
-      checkedInAt: Date.now(),
-    }, {
-      user: staffProfile?.name || user?.email,
-      facilityId,
-      audit: { action: 'qr_booking_verified', module: 'opd' },
-    })
+  // A QR self-booking arrives with no department and no doctor — the public
+  // page no longer lets the patient choose either. Reception confirms the
+  // walk-in matches the token AND makes the routing decision here, in one
+  // step, which is also where the department register number is allocated.
+  //
+  // This used to be a single button that flipped `verified` and left whatever
+  // doctor the patient had picked for themselves.
+  const handleAssign = async ({ departmentId, doctorId }) => {
+    await assignQrVisit({ visitId: assigning.id, departmentId, doctorId })
+    setAssigning(null)
   }
 
   const handleNoShow = async (visit) => {
@@ -132,6 +139,18 @@ export default function QueueScreen() {
         </div>
       </div>
 
+      {assigning && (
+        <AssignVisitModal
+          visit={assigning}
+          departments={departments}
+          doctors={staff}
+          onAssign={handleAssign}
+          onClose={() => setAssigning(null)}
+        />
+      )}
+
+      <OpdFootfallCard refreshKey={visits.length} />
+
       <div className="queue-stats">
         <div className="queue-stat"><span className="queue-stat-num">{statusCounts.booked}</span><span>Booked</span></div>
         <div className="queue-stat queue-stat-warning"><span className="queue-stat-num">{statusCounts.checked_in}</span><span>Checked In</span></div>
@@ -167,13 +186,13 @@ export default function QueueScreen() {
                 <div className="queue-patient-meta">
                   {visit.chiefComplaint && <span>{visit.chiefComplaint}</span>}
                 </div>
-                <div className="queue-doctor-name">Dr. {visit.doctorName || 'Unassigned'}{visit.departmentName ? ` — ${visit.departmentName}` : ''}</div>
+                <div className="queue-doctor-name">Awaiting department &amp; doctor assignment</div>
               </div>
               <div className="queue-status">
                 <span className="badge badge-muted"><QrCode size={12} /> awaiting check-in</span>
               </div>
               <div className="queue-actions">
-                <button className="btn btn-primary btn-sm" onClick={() => handleVerifyQr(visit)}>Verify &amp; Check In</button>
+                <button className="btn btn-primary btn-sm" onClick={() => setAssigning(visit)}>Assign &amp; Check In</button>
                 <button className="btn btn-outline btn-sm btn-danger" onClick={() => handleNoShow(visit)}>No Show</button>
               </div>
             </div>

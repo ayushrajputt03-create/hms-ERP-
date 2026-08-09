@@ -83,6 +83,17 @@ export default function OPDRegistrationForm() {
     [doctors, visit.departmentId]
   )
 
+  // ageFromDob returns null for a future or unparseable date, which is the
+  // same thing it returns for "no DOB entered" — so the emptiness of the Age
+  // field cannot be used to tell the two apart. Checked explicitly here.
+  const dobError = useMemo(() => {
+    if (!patient.dob) return ''
+    const birth = new Date(patient.dob)
+    if (Number.isNaN(birth.getTime())) return 'Enter a valid date of birth.'
+    if (birth > new Date()) return 'Date of birth cannot be in the future.'
+    return ''
+  }, [patient.dob])
+
   const matches = useMemo(() => findPatientsByPhone(patients, search), [patients, search])
   const isNewPatient = existingId === ''
   const showPatientFields = existingId !== null
@@ -133,6 +144,7 @@ export default function OPDRegistrationForm() {
 
   const handleRegister = async () => {
     if (!patient.name.trim()) { setError('Patient name is required.'); return }
+    if (dobError) { setError(dobError); return }
     if (!isValidPhone(patient.phone)) {
       setError('Enter a valid 10-digit Indian mobile number.')
       return
@@ -374,6 +386,11 @@ export default function OPDRegistrationForm() {
                       than they misreport a date of birth. */}
                   <label>Age (Y M D)</label>
                   <input value={formatAge(patient.dob) || '—'} readOnly disabled />
+                  {/* The date input's `max` stops the picker offering a future
+                      date, but a typed or pasted one still lands. Age would
+                      then silently fall back to "—", which looks like a blank
+                      field rather than bad input. */}
+                  {dobError && <p className="field-hint field-hint-error">{dobError}</p>}
                 </div>
                 <div className="form-group">
                   <label><Phone size={14} /> Mobile *</label>
