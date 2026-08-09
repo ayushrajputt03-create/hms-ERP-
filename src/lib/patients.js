@@ -1,6 +1,23 @@
 // Patient demographics helpers shared by the patient form, the OPD
 // registration desk and the printed slip.
 
+import { supabase } from './supabase'
+
+// Server-side patient lookup by name, phone or UHID, used by the dashboard
+// search. Deliberately an RPC rather than a client-side filter over a
+// subscribed collection: on a real tenant the patient register is far too
+// large to ship to the browser just to run an ILIKE over it. The facility is
+// taken from the caller's session inside the function, never from the client.
+export async function searchPatients(query, limit = 20) {
+  if (!supabase) throw new Error('Supabase not configured')
+  const { data, error } = await supabase.rpc('search_patients', {
+    p_query: query,
+    p_limit: limit,
+  })
+  if (error) throw error
+  return data || []
+}
+
 // Guardian relation as it is written on an Indian hospital record.
 export const RELATION_TYPES = {
   SO: 'S/O',

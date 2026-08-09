@@ -14,8 +14,9 @@ import {
 import { INDIAN_STATES } from '@lib/constants'
 import {
   Search, UserPlus, User, Phone, Mail, MapPin, Calendar, Briefcase,
-  Network, Stethoscope, Printer, CheckCircle, ChevronLeft, Loader, ShieldAlert,
+  Network, Stethoscope, Printer, CheckCircle, ChevronLeft, Loader, ShieldAlert, Hash,
 } from 'lucide-react'
+import TokenLookup from './TokenLookup'
 
 const EMPTY_PATIENT = {
   name: '', dob: '', gender: 'male',
@@ -55,6 +56,8 @@ export default function OPDRegistrationForm() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
+  // 'new' = register a walk-in, 'token' = look up an already-issued token.
+  const [mode, setMode] = useState('new')
 
   useEffect(() => {
     if (!facilityId) return
@@ -245,10 +248,31 @@ export default function OPDRegistrationForm() {
           <button className="btn btn-icon" onClick={() => navigate('/opd')}><ChevronLeft size={20} /></button>
           <UserPlus size={22} /> OPD Registration
         </h2>
-        <p>Search by mobile number first — returning patients keep their existing UHID.</p>
+        <p>
+          {mode === 'token'
+            ? 'Look up a patient who already holds a token — including QR self-bookings.'
+            : 'Search by mobile number first — returning patients keep their existing UHID.'}
+        </p>
       </div>
 
-      <div className="patient-form-card" style={{ maxWidth: 820 }}>
+      <div className="tabs">
+        <button
+          className={`tab ${mode === 'new' ? 'active' : ''}`}
+          onClick={() => setMode('new')}
+        >
+          <UserPlus size={15} /> New Registration
+        </button>
+        <button
+          className={`tab ${mode === 'token' ? 'active' : ''}`}
+          onClick={() => setMode('token')}
+        >
+          <Hash size={15} /> Find by Token
+        </button>
+      </div>
+
+      {mode === 'token' && <TokenLookup />}
+
+      <div className="patient-form-card" style={{ maxWidth: 820, display: mode === 'new' ? undefined : 'none' }}>
         {error && <div className="auth-error">{error}</div>}
 
         <fieldset className="form-fieldset">

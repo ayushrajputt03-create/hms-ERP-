@@ -65,3 +65,19 @@ export async function previewConsultationFee({ facilityId, doctorId }) {
   if (error) throw error
   return Number(data) || 0
 }
+
+// Looks up today's (or a given day's) token at the registration desk.
+//
+// Returns an ARRAY of matches, not one visit. Tokens are issued per department
+// (staff desk) and per doctor (QR kiosk), never hospital-wide, so "token 7" can
+// legitimately belong to more than one patient on the same morning. The desk
+// disambiguates by department/doctor rather than the server guessing.
+export async function getVisitByToken({ tokenNumber, tokenDate }) {
+  if (!supabase) throw new Error('Supabase not configured')
+  const { data, error } = await supabase.rpc('get_visit_by_token', {
+    p_token_number: Number(tokenNumber),
+    p_token_date: tokenDate || null,
+  })
+  if (error) throw error
+  return data // { tokenNumber, tokenDate, matches: [...] }
+}

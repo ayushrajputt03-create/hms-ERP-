@@ -2,6 +2,7 @@ import { useAuth } from '@hooks/useAuth'
 import { useFacility } from '@hooks/useFacility'
 import { useFirestoreCollection } from '@hooks/useFirestoreCollection'
 import StatCard from '@components/StatCard'
+import PatientSearchBox from '@components/PatientSearchBox'
 import { ROLES } from '@lib/constants'
 import {
   Users, Stethoscope, BedDouble, Receipt, Activity,
@@ -97,6 +98,8 @@ export default function DashboardPage() {
           />
         )}
       </div>
+
+      {isModuleEnabled('patients') && <PatientSearchBox />}
 
       {(role === ROLES.FACILITY_ADMIN || role === ROLES.SUPER_ADMIN) && (
         <div className="dashboard-section">
