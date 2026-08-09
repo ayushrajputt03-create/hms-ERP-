@@ -6,6 +6,7 @@ import { subscribeToCollection, updateDocument, getDocument } from '@lib/db'
 import { toISODate } from '@lib/utils'
 import { buildOpdSlipPDF } from '@lib/pdf'
 import { departmentSummary } from '@lib/departments'
+import SelfCheckinQR from './SelfCheckinQR'
 import { ListOrdered, CheckCircle, Clock, UserCheck, XCircle, Printer, UserPlus, QrCode } from 'lucide-react'
 
 const STATUS_ICONS = {
@@ -123,9 +124,12 @@ export default function QueueScreen() {
           <h2><ListOrdered size={22} /> OPD Queue — Today</h2>
           <p>{filtered.length} appointment{filtered.length !== 1 ? 's' : ''}</p>
         </div>
-        <button className="btn btn-primary" onClick={() => navigate('/opd/register')}>
-          <UserPlus size={16} /> New Registration
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <SelfCheckinQR facilityId={facilityId} facilityName={facilityConfig?.facilityName} />
+          <button className="btn btn-primary" onClick={() => navigate('/opd/register')}>
+            <UserPlus size={16} /> New Registration
+          </button>
+        </div>
       </div>
 
       <div className="queue-stats">

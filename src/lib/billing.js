@@ -93,6 +93,7 @@ export function computeTotals({ items, gstEnabled, gstRate = DEFAULT_GST_RATE, d
 export async function createInvoice({
   visitIds = [], admissionIds = [], saleIds = [], lineItems,
   subtotal, gstAmount, discount, discountReason, total, paymentMode, insurance,
+  patientId, patientName, patientUhid,
 }) {
   if (!supabase) throw new Error('Supabase not configured')
   const { data, error } = await supabase.rpc('create_invoice', {
@@ -107,6 +108,12 @@ export async function createInvoice({
     p_total: total,
     p_payment_mode: paymentMode,
     p_insurance: insurance || null,
+    // Only used when there's no source visit/admission/sale to read the
+    // patient off of, e.g. a manual-only invoice (walk-in charge with no
+    // OPD/IPD record behind it).
+    p_patient_id: patientId || null,
+    p_patient_name: patientName || null,
+    p_patient_uhid: patientUhid || null,
   })
   if (error) throw error
   return data // new invoice id

@@ -2369,6 +2369,15 @@ a:hover { text-decoration: underline; }
 }
 .invoice-payments-block .invoice-label { margin-bottom: 0.4rem; }
 
+.self-checkin-qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.4rem;
+}
+.self-checkin-qr canvas { border-radius: var(--radius-sm); }
+
 .invoice-foot {
   margin-top: 1.5rem;
   padding-top: 0.75rem;

@@ -98,8 +98,8 @@ export default function BillBuilder() {
   const removeManual = (i) => setManualItems(manualItems.filter((_, idx) => idx !== i))
 
   const handleGenerate = async () => {
-    if (selectedItems.length === 0) {
-      toast.error('Select at least one billable item.')
+    if (lineItems.length === 0) {
+      toast.error('Add at least one billable item — select an un-billed visit/stay or add a manual item.')
       return
     }
     if (discountInvalid) {
@@ -123,6 +123,9 @@ export default function BillBuilder() {
         total,
         paymentMode,
         insurance,
+        patientId: patient.id,
+        patientName: patient.name,
+        patientUhid: patient.uhid,
       })
       toast.success('Invoice generated.')
       navigate(`/billing/invoice/${invoiceId}`)
@@ -274,7 +277,7 @@ export default function BillBuilder() {
               className="btn btn-primary btn-block"
               style={{ marginTop: '1rem' }}
               onClick={handleGenerate}
-              disabled={saving || selectedItems.length === 0 || discountInvalid}
+              disabled={saving || lineItems.length === 0 || discountInvalid}
             >
               {saving ? 'Generating…' : `Generate Invoice — ${formatINR(total)}`}
             </button>
