@@ -1,16 +1,20 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useFacility } from '@hooks/useFacility'
-import { subscribeToCollection } from '@lib/db'
+import { subscribeToCollection, getDocument } from '@lib/db'
+import { buildPharmacyInvoicePDF } from '@lib/pdf'
 import { formatINR, formatDate } from '@lib/utils'
 import DataTable from '@components/DataTable'
-import { Download } from 'lucide-react'
+import { useToast } from '@components/Toast'
+import { Download, Printer } from 'lucide-react'
 
 // Read-only sales ledger. Billing staff use this for reconciliation; the actual
 // billed flag is flipped by the invoice RPC, never edited here.
 export default function SalesTab() {
-  const { facilityId } = useFacility()
+  const { facilityId, facilityConfig } = useFacility()
+  const toast = useToast()
   const [sales, setSales] = useState([])
   const [loading, setLoading] = useState(true)
+  const [printingId, setPrintingId] = useState(null)
 
   useEffect(() => {
     if (!facilityId) { setLoading(false); return }
@@ -39,6 +43,37 @@ export default function SalesTab() {
     a.click(); URL.revokeObjectURL(a.href)
   }
 
+  // HSN, expiry and batch aren't copied onto the sale line at dispense time,
+  // so the medicine and batch records are pulled at print time to build a
+  // GST-compliant bill rather than printing blanks in those columns.
+  const printBill = async (sale) => {
+    setPrintingId(sale.id)
+    try {
+      const ids = (sale.items || [])
+      const [medicines, batches, patient] = await Promise.all([
+        Promise.all([...new Set(ids.map((i) => i.medicineId).filter(Boolean))]
+          .map((id) => getDocument(`facilities/${facilityId}/pharmacy/medicines/${id}`))),
+        Promise.all([...new Set(ids.map((i) => i.batchId).filter(Boolean))]
+          .map((id) => getDocument(`facilities/${facilityId}/pharmacy/batches/${id}`))),
+        sale.patientId ? getDocument(`facilities/${facilityId}/patients/${sale.patientId}`) : null,
+      ])
+      const byId = (list) => Object.fromEntries(list.filter(Boolean).map((d) => [d.id, d]))
+      const pdf = await buildPharmacyInvoicePDF({
+        facility: facilityConfig || {},
+        patient,
+        sale,
+        medicineById: byId(medicines),
+        batchById: byId(batches),
+      })
+      pdf.save(`Pharmacy-Bill-${sale.patientUhid || sale.id}.pdf`)
+    } catch (err) {
+      console.error('Pharmacy bill PDF error:', err)
+      toast.error('Failed to generate the pharmacy bill.')
+    } finally {
+      setPrintingId(null)
+    }
+  }
+
   const columns = [
     { header: 'Date', cell: (s) => formatDate(s.saleDate, 'datetime') },
     { header: 'Type', cell: (s) => <span className="badge badge-muted">{s.type === 'walk_in' ? 'Walk-in' : 'Prescription'}</span> },
@@ -46,6 +81,18 @@ export default function SalesTab() {
     { header: 'Items', cell: (s) => (s.items || []).map((i) => `${i.name} ×${i.quantity}`).join(', ') },
     { header: 'Total', cell: (s) => formatINR(s.total) },
     { header: 'Billed', cell: (s) => <span className={`badge ${s.billed ? 'badge-success' : 'badge-warning'}`}>{s.billed ? 'Billed' : 'Unbilled'}</span> },
+    {
+      header: 'Bill',
+      cell: (s) => (
+        <button
+          className="btn btn-outline btn-sm"
+          disabled={printingId === s.id}
+          onClick={(e) => { e.stopPropagation(); printBill(s) }}
+        >
+          <Printer size={13} /> {printingId === s.id ? '…' : 'Print'}
+        </button>
+      ),
+    },
   ]
 
   if (loading) return <div className="empty-state">Loading sales…</div>

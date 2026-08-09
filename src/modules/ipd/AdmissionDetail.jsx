@@ -6,7 +6,7 @@ import { usePermission } from '@hooks/usePermission'
 import {
   subscribeToDocument, subscribeToCollection, addDocument, updateDocument, getDocument,
 } from '@lib/db'
-import { buildIpdAdmissionSlipPDF } from '@lib/pdf'
+import { buildIpdAdmissionSlipPDF, buildDischargeSummaryPDF } from '@lib/pdf'
 import { departmentSummary } from '@lib/departments'
 import { dischargePatient, administerDose } from '@lib/ipd'
 import { canBill } from '@lib/billing'
@@ -67,6 +67,24 @@ export default function AdmissionDetail() {
     pdf.save(`Admission-Slip-${admission?.patientUhid || admissionId}.pdf`)
   }
 
+  const handlePrintDischargeSummary = async () => {
+    try {
+      const patient = admission?.patientId
+        ? await getDocument(`facilities/${facilityId}/patients/${admission.patientId}`)
+        : null
+      const pdf = await buildDischargeSummaryPDF({
+        facility: facilityConfig || {},
+        patient,
+        admission: { ...admission, id: admissionId },
+        doses,
+      })
+      pdf.save(`Discharge-Summary-${admission?.patientUhid || admissionId}.pdf`)
+    } catch (err) {
+      console.error('Discharge summary PDF error:', err)
+      toast.error('Failed to generate the discharge summary.')
+    }
+  }
+
   const addNote = async () => {
     if (!noteText.trim()) return
     setSavingNote(true)
@@ -114,6 +132,11 @@ export default function AdmissionDetail() {
           <button className="btn btn-outline" onClick={handlePrintSlip}>
             <Printer size={14} /> Admission Slip
           </button>
+          {admission.status === 'discharged' && (
+            <button className="btn btn-outline" onClick={handlePrintDischargeSummary}>
+              <Printer size={14} /> Discharge Summary
+            </button>
+          )}
         </div>
         {isActive && (
           <div style={{ display: 'flex', gap: '0.5rem' }}>

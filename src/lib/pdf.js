@@ -1314,6 +1314,395 @@ export async function buildHospitalInvoicePDF({ facility, patient, invoice }) {
   return pdf
 }
 
+// Bordered section with a filled title bar — the discharge summary's
+// "Clinical Course", "Investigations" etc.
+function drawSectionBox(pdf, { y, title, rightTitle, body, minBodyH = 0 }) {
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const margin = 12
+  const w = pageWidth - margin * 2
+
+  pdf.setFillColor(...NAVY)
+  pdf.rect(margin, y, w, 5.5, 'F')
+  pdf.setFontSize(7)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setTextColor(255, 255, 255)
+  pdf.text(String(title).toUpperCase(), margin + 3, y + 3.8)
+  if (rightTitle) pdf.text(String(rightTitle), pageWidth - margin - 3, y + 3.8, { align: 'right' })
+  pdf.setTextColor(0, 0, 0)
+  pdf.setFont('helvetica', 'normal')
+
+  pdf.setFontSize(8)
+  const lines = body ? pdf.splitTextToSize(String(body), w - 6) : []
+  const bodyH = Math.max(lines.length * 4 + 4, minBodyH)
+  pdf.setDrawColor(203, 213, 224)
+  pdf.setLineWidth(0.3)
+  pdf.rect(margin, y + 5.5, w, bodyH)
+  if (lines.length) pdf.text(lines, margin + 3, y + 10)
+  return y + 5.5 + bodyH
+}
+
+// IPD discharge summary — the clinical resume the patient carries to their
+// follow-up and their insurer.
+export async function buildDischargeSummaryPDF({ facility, patient, admission, doses = [] }) {
+  const pdf = createPDF()
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const pageHeight = pdf.internal.pageSize.getHeight()
+  const margin = 12
+  const contentWidth = pageWidth - margin * 2
+
+  const uhid = patient?.uhid || admission?.patientUhid || ''
+  const ipdNo = admission?.ipdNumber || admission?.id || ''
+  const stayDays = admission?.stayDays
+    || Math.max(1, Math.ceil(((admission?.dischargedAt || Date.now()) - (admission?.admissionDate || Date.now())) / 86400000))
+
+  let y = drawDocHeader(pdf, facility, {
+    docLabel: 'Inpatient Discharge Summary',
+    docNumber: ipdNo,
+    numberPrefix: 'IPD',
+    extraLine: facility?.emergencyPhone ? `EMERGENCY CASUALTY 24x7: ${facility.emergencyPhone}` : '',
+  })
+
+  y = drawDocBanner(pdf, {
+    y,
+    left: 'Clinical Discharge Summary & Patient Resume',
+    right: `Discharged: ${admission?.dischargedAt
+      ? new Date(admission.dischargedAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+      : '--'}`,
+  })
+
+  const ageSex = [
+    formatAge(patient?.dob),
+    patient?.gender && patient.gender[0].toUpperCase() + patient.gender.slice(1),
+  ].filter(Boolean).join(' / ')
+
+  y = drawDetailsBox(pdf, {
+    y,
+    leftRows: [
+      ['Patient Name', patient?.name || admission?.patientName],
+      ['Age / Sex', ageSex],
+      ['UHID Number', uhid],
+      ['IPD Admission No', ipdNo],
+      ['ABHA ID / ABDM', patient?.abhaId],
+    ],
+    rightRows: [
+      ['Department', admission?.departmentName],
+      ['Ward / Bed', [admission?.wardName, admission?.bedName].filter(Boolean).join(', ')],
+      ['Consultant Incharge', admission?.doctorName ? `Dr. ${admission.doctorName}` : null],
+      ['Admission Date/Time', admission?.admissionDate
+        ? new Date(admission.admissionDate).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+        : null],
+      ['Length of Stay', `${stayDays} day${stayDays !== 1 ? 's' : ''}`],
+    ],
+    labelW: 32,
+  })
+
+  y += 4
+
+  // Diagnosis band.
+  pdf.setFillColor(235, 248, 255)
+  pdf.setDrawColor(203, 213, 224)
+  pdf.setLineWidth(0.3)
+  const diagLines = pdf.splitTextToSize(admission?.diagnosis || 'Not recorded', contentWidth - 30)
+  const diagH = diagLines.length * 4.4 + 9
+  pdf.rect(margin, y, contentWidth, diagH, 'FD')
+  pdf.setFillColor(49, 130, 206)
+  pdf.rect(margin, y, 1.6, diagH, 'F')
+  pdf.setFontSize(6.5)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setTextColor(113, 128, 150)
+  pdf.text('FINAL DIAGNOSIS', margin + 5, y + 4.5)
+  pdf.setFontSize(10)
+  pdf.setTextColor(43, 108, 176)
+  pdf.text(diagLines, margin + 5, y + 9.5)
+  pdf.setTextColor(0, 0, 0)
+  pdf.setFont('helvetica', 'normal')
+  y += diagH + 4
+
+  y = drawSectionBox(pdf, {
+    y,
+    title: 'Clinical Course in Hospital & Discharge Advice',
+    rightTitle: admission?.status === 'discharged' ? 'Discharged' : 'In Progress',
+    body: admission?.dischargeSummary || 'No discharge summary recorded.',
+    minBodyH: 26,
+  })
+
+  // Medication administered during the stay — this is the MAR, which is what
+  // the ward actually records; a separate structured discharge prescription
+  // isn't captured by the discharge form, so nothing is invented here.
+  if (doses.length) {
+    y += 4
+    y = drawDocTable(pdf, {
+      y,
+      headers: ['#', 'Medicine', 'Dosage', 'Scheduled', 'Status'],
+      widths: [8, 66, 34, 44, 34],
+      align: ['center', 'left', 'left', 'left', 'left'],
+      rows: doses.map((d, i) => [
+        i + 1,
+        d.medicine || '--',
+        d.dosage || '--',
+        d.scheduledTime || '--',
+        d.administered
+          ? `Given${d.administeredAt ? ' ' + new Date(d.administeredAt).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }) : ''}`
+          : 'Not given',
+      ]),
+      bottomLimit: pageHeight - 80,
+    })
+  }
+
+  // Follow-up + emergency advice, side by side.
+  y += 5
+  const cardW = contentWidth / 2 - 3
+  const cardH = 22
+  pdf.setFillColor(230, 255, 250)
+  pdf.setDrawColor(129, 230, 217)
+  pdf.setLineWidth(0.3)
+  pdf.rect(margin, y, cardW, cardH, 'FD')
+  pdf.setFontSize(6.8)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setTextColor(35, 78, 82)
+  pdf.text('FOLLOW-UP ADVICE & NEXT REVIEW', margin + 3, y + 4.5)
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(7.2)
+  pdf.setTextColor(26, 32, 44)
+  pdf.text(pdf.splitTextToSize(
+    `Report to ${admission?.departmentName || 'the'} OPD for review. Carry this summary and all reports.`,
+    cardW - 6
+  ), margin + 3, y + 9)
+  pdf.setDrawColor(129, 230, 217)
+  pdf.setLineWidth(0.2)
+  pdf.text('Review on: ', margin + 3, y + 18)
+  pdf.line(margin + 20, y + 18.5, margin + cardW - 3, y + 18.5)
+
+  const ex = margin + cardW + 6
+  pdf.setFillColor(255, 245, 245)
+  pdf.setDrawColor(254, 178, 178)
+  pdf.setLineWidth(0.3)
+  pdf.rect(ex, y, cardW, cardH, 'FD')
+  pdf.setFontSize(6.8)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setTextColor(155, 44, 44)
+  pdf.text('EMERGENCY WARNING SIGNS', ex + 3, y + 4.5)
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(7.2)
+  pdf.setTextColor(116, 42, 42)
+  pdf.text(pdf.splitTextToSize(
+    'In case of high fever, bleeding, breathlessness, severe pain, persistent vomiting or altered consciousness, '
+    + `report immediately to the hospital emergency casualty${facility?.emergencyPhone ? ' (' + facility.emergencyPhone + ')' : ''}.`,
+    cardW - 6
+  ), ex + 3, y + 9)
+  pdf.setTextColor(0, 0, 0)
+  y += cardH
+
+  if (patient?.allergies?.length) {
+    y += 4
+    pdf.setFontSize(7.5)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setTextColor(197, 48, 48)
+    pdf.text(`KNOWN ALLERGIES: ${patient.allergies.join(', ')}`, margin, y)
+    pdf.setTextColor(0, 0, 0)
+    pdf.setFont('helvetica', 'normal')
+  }
+
+  // Two signatures: ward RMO and the consultant who owned the admission.
+  const sigY = Math.max(y + 10, pageHeight - 44)
+  pdf.setDrawColor(0, 0, 0)
+  pdf.setLineWidth(0.4)
+  pdf.line(margin, sigY, pageWidth - margin, sigY)
+  const signW = 62
+  const blocks = [
+    { x: margin + 4, name: admission?.dischargedByName || '', role: 'Resident Medical Officer / Ward Incharge' },
+    { x: pageWidth - margin - 4 - signW, name: admission?.doctorName ? `Dr. ${admission.doctorName}` : '', role: 'Consultant Incharge' },
+  ]
+  for (const b of blocks) {
+    pdf.setLineWidth(0.3)
+    pdf.line(b.x, sigY + 14, b.x + signW, sigY + 14)
+    pdf.setFontSize(7.5)
+    pdf.setFont('helvetica', 'bold')
+    pdf.text(b.name, b.x + signW / 2, sigY + 17.5, { align: 'center' })
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(6.5)
+    pdf.setTextColor(113, 128, 150)
+    pdf.text(b.role, b.x + signW / 2, sigY + 21, { align: 'center' })
+    pdf.setTextColor(0, 0, 0)
+  }
+
+  drawDocFooter(pdf, {
+    terms: [
+      'This is an official computer-generated Inpatient Discharge Summary.',
+      'Keep this summary for medical follow-up and insurance / TPA claim settlement.',
+    ],
+    moduleName: 'IPD Discharge & Clinical Documentation',
+  })
+  return pdf
+}
+
+// Pharmacy retail drug invoice. Indian pharmacy prices are quoted
+// GST-inclusive, so the taxable value is back-calculated out of the line
+// amount rather than added on top — the patient pays exactly the shelf price.
+export async function buildPharmacyInvoicePDF({
+  facility, patient, sale, doctor, medicineById = {}, batchById = {}, pharmacistName,
+}) {
+  const pdf = createPDF()
+  const pageHeight = pdf.internal.pageSize.getHeight()
+  const margin = 12
+
+  const gstEnabled = !!facility?.gstEnabled
+  const gstRate = Number(facility?.gstRate) || 12
+  const items = sale?.items || []
+  const total = Number(sale?.total) || items.reduce((s, i) => s + (Number(i.subtotal) || 0), 0)
+
+  const licenceLine = [
+    facility?.dlNo20B && `DL 20B: ${facility.dlNo20B}`,
+    facility?.dlNo21B && `DL 21B: ${facility.dlNo21B}`,
+  ].filter(Boolean).join('  |  ')
+
+  let y = drawDocHeader(pdf, facility, {
+    docLabel: sale?.type === 'walk_in' ? 'Pharmacy Invoice (Walk-in)' : 'Pharmacy Tax Invoice',
+    docNumber: sale?.billNumber || sale?.id,
+    numberPrefix: 'BILL',
+    extraLine: licenceLine,
+    accent: [39, 103, 73],
+  })
+
+  y = drawDocBanner(pdf, {
+    y,
+    left: 'Retail Drug Invoice & Cash Receipt (Original for Recipient)',
+    right: `Date: ${sale?.saleDate
+      ? new Date(sale.saleDate).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+      : '--'}`,
+  })
+
+  const ageSex = [
+    formatAge(patient?.dob),
+    patient?.gender && patient.gender[0].toUpperCase() + patient.gender.slice(1),
+  ].filter(Boolean).join(' / ')
+
+  y = drawDetailsBox(pdf, {
+    y,
+    leftRows: [
+      ['Patient Name', sale?.patientName || patient?.name || 'Walk-in Customer'],
+      ['Age / Sex', ageSex],
+      ['UHID Number', sale?.patientUhid || patient?.uhid],
+      ['Mobile No', maskPhone(patient?.phone)],
+    ],
+    rightRows: [
+      ['Prescribing Doctor', doctor?.name ? `Dr. ${doctor.name}` : null],
+      ['Doctor Reg. No', doctor?.registrationNumber],
+      ['Billing Type', sale?.type === 'walk_in' ? 'Walk-in Retail' : 'OPD Prescription'],
+      ['ABHA ID / ABDM', patient?.abhaId],
+    ],
+    labelW: 32,
+  })
+
+  y += 4
+
+  const rows = items.map((it, i) => {
+    const med = medicineById[it.medicineId] || {}
+    const batch = batchById[it.batchId] || {}
+    const amount = Number(it.subtotal) || (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0)
+    return {
+      hsn: med.hsnCode || '--',
+      amount,
+      cells: [
+        i + 1,
+        [it.name || med.name || '--', med.category].filter(Boolean).join('\n'),
+        med.hsnCode || '--',
+        it.batchNumber || batch.batchNumber || '--',
+        batch.expiryDate
+          ? new Date(batch.expiryDate).toLocaleDateString('en-IN', { month: '2-digit', year: '2-digit' })
+          : '--',
+        it.quantity,
+        Number(it.unitPrice || 0).toFixed(2),
+        amount.toFixed(2),
+      ],
+    }
+  })
+
+  y = drawDocTable(pdf, {
+    y,
+    headers: ['#', 'Medicine / Drug Description', 'HSN', 'Batch', 'Exp', 'Qty', 'Rate (Rs.)', 'Amount (Rs.)'],
+    widths: [8, 56, 20, 24, 14, 12, 24, 28],
+    align: ['center', 'left', 'center', 'center', 'center', 'center', 'right', 'right'],
+    rows: rows.map((r) => r.cells),
+    bottomLimit: pageHeight - 105,
+  })
+
+  // HSN-wise tax split — the part a GST audit actually looks at.
+  let taxableTotal = total
+  let taxTotal = 0
+  if (gstEnabled) {
+    const byHsn = {}
+    for (const r of rows) {
+      byHsn[r.hsn] = (byHsn[r.hsn] || 0) + r.amount
+    }
+    const half = gstRate / 2
+    const hsnRows = Object.entries(byHsn).map(([hsn, gross]) => {
+      const taxable = gross / (1 + gstRate / 100)
+      const tax = gross - taxable
+      return [hsn, taxable.toFixed(2), `${half}%`, (tax / 2).toFixed(2), `${half}%`, (tax / 2).toFixed(2), tax.toFixed(2)]
+    })
+    taxableTotal = Object.values(byHsn).reduce((s, g) => s + g / (1 + gstRate / 100), 0)
+    taxTotal = total - taxableTotal
+
+    y += 4
+    pdf.setFontSize(7)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setTextColor(...NAVY)
+    pdf.text('HSN-WISE GST SUMMARY (TAX INCLUDED IN RATE)', margin, y)
+    pdf.setTextColor(0, 0, 0)
+    pdf.setFont('helvetica', 'normal')
+    y = drawDocTable(pdf, {
+      y: y + 1.5,
+      headers: ['HSN Code', 'Taxable Value', 'CGST %', 'CGST Amt', 'SGST %', 'SGST Amt', 'Total Tax'],
+      widths: [32, 30, 20, 28, 20, 28, 28],
+      align: ['left', 'right', 'center', 'right', 'center', 'right', 'right'],
+      headerFill: [113, 128, 150],
+      fontSize: 7,
+      rows: hsnRows,
+    })
+  }
+
+  y += 4
+  y = drawTotalsBox(pdf, {
+    y,
+    wordsText: amountInWords(total),
+    metaLines: [
+      `Dispensed by: ${pharmacistName || sale?.dispensedByRole || '--'}`,
+      sale?.opdVisitId ? 'Dispensed against an OPD prescription.' : '',
+    ],
+    calcRows: [
+      ...(gstEnabled
+        ? [
+            { label: 'Taxable Value (Excl. GST)', value: `Rs. ${taxableTotal.toFixed(2)}` },
+            { label: `CGST @ ${gstRate / 2}%`, value: `Rs. ${(taxTotal / 2).toFixed(2)}` },
+            { label: `SGST @ ${gstRate / 2}%`, value: `Rs. ${(taxTotal / 2).toFixed(2)}` },
+          ]
+        : [{ label: 'Total Value', value: `Rs. ${total.toFixed(2)}` }]),
+      { label: 'Net Payable', value: `Rs. ${total.toFixed(2)}`, style: 'grand' },
+      { label: 'Amount Received', value: `Rs. ${total.toFixed(2)}`, style: 'paid' },
+    ],
+  })
+
+  const sigY = Math.max(y + 6, pageHeight - 46)
+  await drawSignatureStrip(pdf, {
+    y: sigY,
+    qrValue: sale?.billNumber || sale?.id,
+    qrTitle: 'Scan to verify this bill',
+    qrLines: [`Bill: ${sale?.billNumber || sale?.id || '--'}`],
+    signName: pharmacistName || '',
+    signRole: 'Registered Pharmacist / Store Incharge',
+  })
+
+  drawDocFooter(pdf, {
+    terms: [
+      'Schedule H / H1 / X drugs are sold only against a valid prescription of a Registered Medical Practitioner.',
+      'Goods once sold are not taken back without the original bill. Please check the expiry date before leaving the counter.',
+    ],
+    moduleName: 'Pharmacy & Drug Inventory Billing',
+  })
+  return pdf
+}
+
 function formatVitals(v) {
   if (!v) return ''
   return [
