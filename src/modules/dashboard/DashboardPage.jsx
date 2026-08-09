@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '@hooks/useAuth'
 import { useFacility } from '@hooks/useFacility'
 import { useFirestoreCollection } from '@hooks/useFirestoreCollection'
-import { countDocuments } from '@lib/db'
 import { getDashboardStats } from '@lib/accounting'
+import { usePatientStats, formatCount } from '@hooks/usePatientStats'
 import { formatINR } from '@lib/utils'
 import StatCard from '@components/StatCard'
 import PatientSearchBox from '@components/PatientSearchBox'
@@ -12,24 +12,19 @@ import { ROLES } from '@lib/constants'
 import {
   Users, Stethoscope, BedDouble, Receipt, Activity,
   UserCheck, FlaskConical, Pill, TrendingUp, AlertTriangle,
+  UserPlus, CalendarDays, CalendarRange,
 } from 'lucide-react'
 
 export default function DashboardPage() {
   const { staffProfile } = useAuth()
   const { facilityId, isModuleEnabled } = useFacility()
 
-  // Count only. This used to subscribe to the whole patients collection just
-  // to read .length off it — the entire register downloaded and kept live in
-  // memory to render one number.
-  const [patientCount, setPatientCount] = useState(0)
-  useEffect(() => {
-    if (!facilityId) return
-    let live = true
-    countDocuments(`facilities/${facilityId}/patients`)
-      .then((n) => { if (live) setPatientCount(n) })
-      .catch((err) => console.error('Patient count error:', err))
-    return () => { live = false }
-  }, [facilityId])
+  // Registration counts by range. This replaces a standalone
+  // countDocuments(patients) call — the same RPC that returns the all-time
+  // total returns today/week/month alongside it, so asking twice would be one
+  // round trip spent to learn less.
+  const { stats: patientStats, loading: patientStatsLoading } = usePatientStats()
+  const reg = (key) => formatCount(patientStats?.patients?.[key], { loading: patientStatsLoading })
 
   // Today's counts and takings, aggregated in Postgres. These cards used to be
   // hardcoded strings — "—", "₹0", "0" — which read as real answers. If the
@@ -73,14 +68,41 @@ export default function DashboardPage() {
         <p>Welcome back, {staffProfile?.name || 'User'}</p>
       </div>
 
+      {/* Registrations, not footfall. A returning patient adds to Today's OPD
+          below but to none of these — the register only grows when someone new
+          is entered on it. */}
       <div className="stats-grid">
+        <StatCard
+          icon={UserPlus}
+          label="Registered Today"
+          value={reg('today')}
+          sub="new patients"
+          color="teal"
+        />
+        <StatCard
+          icon={CalendarDays}
+          label="This Week"
+          value={reg('week')}
+          sub="new patients (Mon–Sun)"
+          color="blue"
+        />
+        <StatCard
+          icon={CalendarRange}
+          label="This Month"
+          value={reg('month')}
+          sub="new patients"
+          color="purple"
+        />
         <StatCard
           icon={Users}
           label="Total Patients"
-          value={patientCount}
-          color="teal"
+          value={reg('total')}
+          sub="all time"
+          color="green"
         />
+      </div>
 
+      <div className="stats-grid">
         {isModuleEnabled('opd') && (
           <StatCard
             icon={Stethoscope}

@@ -124,3 +124,20 @@ export function findPatientsByPhone(patients = [], phone) {
   if (needle.length < 10) return []
   return patients.filter((p) => normalisePhone(p.phone).slice(-10) === needle)
 }
+
+// Registration and OPD footfall counts for the dashboard cards and the OPD
+// header widget. One RPC returns every bucket (today/week/month/total for both
+// registrations and visits) because the alternative — a call per range — would
+// re-hit the database every time someone flicks the OPD toggle, to fetch
+// numbers that were already computed by the first call.
+//
+// Range boundaries are decided in Postgres, in Asia/Kolkata. Deliberately not
+// here: `new Date().setHours(0,0,0,0)` gives the browser's midnight, so a
+// laptop left on UTC would show a different "today" than the machine next to
+// it, and neither would match the ward.
+export async function getPatientStats() {
+  if (!supabase) throw new Error('Supabase not configured')
+  const { data, error } = await supabase.rpc('hms_patient_stats')
+  if (error) throw error
+  return data || null
+}
