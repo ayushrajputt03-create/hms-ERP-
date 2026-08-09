@@ -1,7 +1,9 @@
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@hooks/useAuth'
 import { useFacility } from '@hooks/useFacility'
 import { useFirestoreCollection } from '@hooks/useFirestoreCollection'
+import { countDocuments } from '@lib/db'
 import StatCard from '@components/StatCard'
 import PatientSearchBox from '@components/PatientSearchBox'
 import { ROLES } from '@lib/constants'
@@ -14,9 +16,18 @@ export default function DashboardPage() {
   const { staffProfile } = useAuth()
   const { facilityId, isModuleEnabled } = useFacility()
 
-  const { data: patients } = useFirestoreCollection(
-    facilityId ? `facilities/${facilityId}/patients` : null
-  )
+  // Count only. This used to subscribe to the whole patients collection just
+  // to read .length off it — the entire register downloaded and kept live in
+  // memory to render one number.
+  const [patientCount, setPatientCount] = useState(0)
+  useEffect(() => {
+    if (!facilityId) return
+    let live = true
+    countDocuments(`facilities/${facilityId}/patients`)
+      .then((n) => { if (live) setPatientCount(n) })
+      .catch((err) => console.error('Patient count error:', err))
+    return () => { live = false }
+  }, [facilityId])
 
   const { data: wards } = useFirestoreCollection(
     facilityId && isModuleEnabled('ipd') ? `facilities/${facilityId}/ipd/wards` : null
@@ -47,7 +58,7 @@ export default function DashboardPage() {
         <StatCard
           icon={Users}
           label="Total Patients"
-          value={patients?.length || 0}
+          value={patientCount}
           color="teal"
         />
 

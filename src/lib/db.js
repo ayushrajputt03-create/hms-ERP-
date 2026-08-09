@@ -158,6 +158,23 @@ export async function queryDocuments(collectionPath, filters = {}) {
   return (data || []).map(rowToDoc)
 }
 
+// Row count without shipping the rows.
+//
+// Dashboards want "how many patients", not the patient register. Reading a
+// whole collection to call .length on it is fine at 40 records and ruinous at
+// 40,000 — it is the entire table over the wire, parsed in the browser, to
+// render one number. `head: true` sends no rows at all; Postgres answers from
+// the collection index.
+export async function countDocuments(collectionPath) {
+  if (!supabase || !collectionPath) return 0
+  const { count, error } = await supabase
+    .from(TABLE)
+    .select('path', { count: 'exact', head: true })
+    .eq('collection', collectionPath)
+  if (error) throw error
+  return count || 0
+}
+
 export function subscribeToDocument(path, callback) {
   if (!supabase) { callback(null); return () => {} }
   getDocument(path).then(callback).catch(() => callback(null))
