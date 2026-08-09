@@ -4,11 +4,11 @@ import { useFacility } from '@hooks/useFacility'
 import { subscribeToCollection, addDocument, updateDocument, deleteDocument } from '@lib/db'
 import { ROLES } from '@lib/constants'
 import {
-  DEPARTMENT_TYPES, DEPARTMENT_TYPE_LABELS, departmentLocation,
+  DEPARTMENT_TYPES, DEPARTMENT_TYPE_LABELS, departmentLocation, STANDARD_DEPARTMENTS,
 } from '@lib/departments'
 import Modal from '@components/Modal'
 import { useToast } from '@components/Toast'
-import { Plus, Edit, Trash2, Building } from 'lucide-react'
+import { Plus, Edit, Trash2, Building, ListChecks } from 'lucide-react'
 
 const EMPTY = {
   name: '', code: '', floor: '', wing: '', roomNumber: '',
@@ -28,6 +28,9 @@ export default function DepartmentsManager() {
   const [deleting, setDeleting] = useState(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [quickAddOpen, setQuickAddOpen] = useState(false)
+  const [quickAddPicked, setQuickAddPicked] = useState({})
+  const [quickAddSaving, setQuickAddSaving] = useState(false)
 
   useEffect(() => {
     if (!facilityId) return
@@ -48,6 +51,39 @@ export default function DepartmentsManager() {
   const update = (field) => (e) => setForm({ ...form, [field]: e.target.value })
 
   const openAdd = () => { setForm(EMPTY); setEditingId(null); setError(''); setModal(true) }
+
+  const existingCodes = useMemo(
+    () => new Set(departments.map((d) => (d.code || '').toUpperCase())),
+    [departments]
+  )
+  const quickAddOptions = useMemo(
+    () => STANDARD_DEPARTMENTS.filter((d) => !existingCodes.has(d.code)),
+    [existingCodes]
+  )
+
+  const openQuickAdd = () => { setQuickAddPicked({}); setQuickAddOpen(true) }
+  const toggleQuickAdd = (code) => setQuickAddPicked((p) => ({ ...p, [code]: !p[code] }))
+
+  const handleQuickAddSave = async () => {
+    const picked = quickAddOptions.filter((d) => quickAddPicked[d.code])
+    if (picked.length === 0) { setQuickAddOpen(false); return }
+    setQuickAddSaving(true)
+    try {
+      for (const d of picked) {
+        await addDocument(`facilities/${facilityId}/departments`, {
+          name: d.name, code: d.code, floor: null, wing: null, roomNumber: null,
+          hodDoctorId: null, departmentType: d.departmentType, status: 'active',
+        }, auditCtx('department_created'))
+      }
+      toast.success(`Added ${picked.length} department${picked.length !== 1 ? 's' : ''}.`)
+      setQuickAddOpen(false)
+    } catch (err) {
+      console.error('Quick-add departments error:', err)
+      toast.error('Failed to add some departments.')
+    } finally {
+      setQuickAddSaving(false)
+    }
+  }
 
   const openEdit = (dept) => {
     setForm({
@@ -132,15 +168,21 @@ export default function DepartmentsManager() {
   return (
     <div className="settings-section">
       <div className="pharmacy-alerts">
-        <button className="btn btn-primary" style={{ marginLeft: 'auto' }} onClick={openAdd}>
+        {quickAddOptions.length > 0 && (
+          <button className="btn btn-outline" onClick={openQuickAdd}>
+            <ListChecks size={16} /> Quick Add Standard Departments
+          </button>
+        )}
+        <button className="btn btn-primary" style={{ marginLeft: quickAddOptions.length > 0 ? '0.5rem' : 'auto' }} onClick={openAdd}>
           <Plus size={16} /> Add Department
         </button>
       </div>
 
       {departments.length === 0 ? (
         <div className="empty-state">
-          <Building size={20} /> No departments yet. Add one so OPD and IPD can route
-          patients to the right floor and room.
+          <Building size={20} /> No departments yet. Use "Quick Add Standard Departments" to
+          set up common ones in one go, or add your own so OPD and IPD can route patients to
+          the right floor and room.
         </div>
       ) : (
         <table className="data-table">
@@ -293,6 +335,35 @@ export default function DepartmentsManager() {
             </div>
           </>
         )}
+      </Modal>
+      <Modal
+        isOpen={quickAddOpen}
+        onClose={() => setQuickAddOpen(false)}
+        title="Quick Add Standard Departments"
+        size="md"
+      >
+        <p className="settings-hint" style={{ marginBottom: '0.75rem' }}>
+          Tick the ones this facility runs — you can edit floor/wing/room and HOD for each
+          afterwards. Already-added departments aren't shown again.
+        </p>
+        <div className="quick-add-dept-grid">
+          {quickAddOptions.map((d) => (
+            <label key={d.code} className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={!!quickAddPicked[d.code]}
+                onChange={() => toggleQuickAdd(d.code)}
+              />
+              <span>{d.name}</span>
+            </label>
+          ))}
+        </div>
+        <div className="form-actions">
+          <button className="btn btn-outline" onClick={() => setQuickAddOpen(false)}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleQuickAddSave} disabled={quickAddSaving}>
+            {quickAddSaving ? 'Adding...' : `Add Selected (${Object.values(quickAddPicked).filter(Boolean).length})`}
+          </button>
+        </div>
       </Modal>
     </div>
   )

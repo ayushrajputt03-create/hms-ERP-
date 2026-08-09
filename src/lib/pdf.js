@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf'
 import QRCode from 'qrcode'
 import { departmentSummary } from './departments'
 import { formatAge, maskPhone, BILLING_TYPE_LABELS } from './patients'
+import { drawBarcode } from './barcode'
 
 // The "where do I go" strip. Patients read this at the counter, so it prints
 // boxed and bold rather than folded into the body text.
@@ -199,157 +200,317 @@ async function uhidQrDataUrl(uhid) {
   }
 }
 
-// Draws a stack of "Label: value" pairs in one column and returns the y it
-// ended on, so the two columns of the patient block can be laid out
-// independently and the taller one decides where the notes area starts.
-function addFieldColumn(pdf, fields, { x, y, labelWidth, colWidth }) {
-  let cursor = y
-  fields.forEach(([label, value]) => {
-    pdf.setFont('helvetica', 'bold')
-    pdf.text(`${label}:`, x, cursor)
-    pdf.setFont('helvetica', 'normal')
-    const lines = pdf.splitTextToSize(String(value ?? '—'), colWidth - labelWidth)
-    pdf.text(lines, x + labelWidth, cursor)
-    cursor += Math.max(lines.length, 1) * 4.6 + 1.4
-  })
-  return cursor
-}
-
-// OPD parchi, modelled on a government hospital out-patient record: routing
-// strip at the top for the patient, a two-column record block for the clerk,
-// and the rest of the sheet left blank for the doctor to write on by hand.
+// OPD parchi, laid out like a real government-hospital out-patient record:
+// stamp / branding / scannable UHID barcode across the header, a bordered
+// two-column demographics block for the counter clerk, and the whole lower
+// half left ruled-but-blank for the doctor to write the Rx by hand.
 //
-// Async because the QR has to be rasterised before it can be placed.
+// Async because the ABHA QR has to be rasterised before it can be placed.
 export async function buildOpdSlipPDF({ facility, patient, visit }) {
   const pdf = createPDF()
   const pageWidth = pdf.internal.pageSize.getWidth()
   const pageHeight = pdf.internal.pageSize.getHeight()
-  const margin = 15
+  const margin = 12
   const contentWidth = pageWidth - margin * 2
+  const NAVY = [26, 54, 93]
 
-  let y = addHeader(pdf, facility)
+  const uhid = patient?.uhid || visit?.patientUhid || ''
+  const token = visit?.tokenNumber
 
-  // Room / wing / token strip. The token is the one thing a waiting patient
-  // looks for, so it is the largest thing on the page.
-  pdf.setFontSize(9)
+  // ---- HEADER: stamp box | hospital branding | UHID barcode ---------------
+  let y = 12
+  const stampW = 36
+  const barcodeW = 42
+  const barcodeX = pageWidth - margin - barcodeW
+
+  pdf.setDrawColor(160, 174, 192)
+  pdf.setLineWidth(0.2)
+  pdf.setLineDashPattern([0.8, 0.8], 0)
+  pdf.rect(margin, y, stampW, 17)
+  pdf.setLineDashPattern([], 0)
+  pdf.setFontSize(7)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setTextColor(45, 55, 72)
+  pdf.text('HMS RECORD', margin + stampW / 2, y + 4.5, { align: 'center' })
+  pdf.setLineWidth(0.15)
+  pdf.line(margin + 2, y + 5.8, margin + stampW - 2, y + 5.8)
   pdf.setFont('helvetica', 'normal')
-  pdf.text(`Consulting Room No.: ${visit?.roomNumber || '—'}`, margin, y + 4)
-  pdf.text(`Wing: ${visit?.wing || '—'}`, pageWidth / 2, y + 4, { align: 'center' })
+  pdf.setFontSize(6.5)
+  pdf.text('OPD / CLINIC SLIP', margin + stampW / 2, y + 9.5, { align: 'center' })
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(9)
+  pdf.setTextColor(...NAVY)
+  pdf.text(`TOKEN NO : ${token ?? '--'}`, margin + stampW / 2, y + 14.5, { align: 'center' })
+  pdf.setTextColor(0, 0, 0)
+
+  const centerLeft = margin + stampW + 4
+  const centerWidth = barcodeX - centerLeft - 4
+  const centerX = centerLeft + centerWidth / 2
+
+  pdf.setFontSize(13)
+  pdf.setFont('helvetica', 'bold')
+  const nameLines = pdf.splitTextToSize(
+    String(facility?.facilityName || 'Hospital').toUpperCase(), centerWidth
+  )
+  pdf.text(nameLines, centerX, y + 4.5, { align: 'center' })
+  let cy = y + 4.5 + nameLines.length * 5
 
   pdf.setFontSize(8)
-  pdf.text('TOKEN NO.', pageWidth - margin, y, { align: 'right' })
-  pdf.setFontSize(22)
-  pdf.setFont('helvetica', 'bold')
-  pdf.text(String(visit?.tokenNumber ?? '—'), pageWidth - margin, y + 8, { align: 'right' })
   pdf.setFont('helvetica', 'normal')
-  y += 13
+  pdf.setTextColor(45, 55, 72)
+  const addressLine = [facility?.address, facility?.city, facility?.state, facility?.pincode]
+    .filter(Boolean).join(', ')
+  if (addressLine) {
+    const addrLines = pdf.splitTextToSize(addressLine, centerWidth)
+    pdf.text(addrLines, centerX, cy, { align: 'center' })
+    cy += addrLines.length * 3.8
+  }
 
-  pdf.setFontSize(10)
+  pdf.setFontSize(7.5)
   pdf.setFont('helvetica', 'bold')
+  pdf.setTextColor(26, 32, 44)
+  const roomLine = [
+    visit?.roomNumber && `CONSULTING ROOM NO : ${visit.roomNumber}`,
+    visit?.wing,
+    token != null && `TOKEN NO : ${token}`,
+  ].filter(Boolean).join(', ')
+  if (roomLine) { cy += 1; pdf.text(roomLine, centerX, cy, { align: 'center' }); cy += 3.6 }
+  if (visit?.departmentName) {
+    pdf.text(`Clinic: ${visit.departmentName}`, centerX, cy, { align: 'center' })
+    cy += 3.6
+  }
+  if (visit?.opdDays) {
+    pdf.text(`Days: ${visit.opdDays}`, centerX, cy, { align: 'center' })
+    cy += 3.6
+  }
+  pdf.setTextColor(0, 0, 0)
+
+  // Scannable Code 128-B of the UHID — falls back to plain text if unencodable.
+  const barcodeDrawn = drawBarcode(pdf, uhid, { x: barcodeX, y: y + 1, width: barcodeW, height: 11 })
+  pdf.setFontSize(7.5)
+  pdf.setFont('courier', 'bold')
   pdf.text(
-    [visit?.departmentName, visit?.unit && `Unit: ${visit.unit}`].filter(Boolean).join('  —  ') || '—',
-    margin,
-    y
+    `UHID: ${uhid || '--'}`,
+    pageWidth - margin,
+    y + (barcodeDrawn ? 15.5 : 8),
+    { align: 'right' }
   )
   pdf.setFont('helvetica', 'normal')
-  if (visit?.opdDays) {
-    pdf.setFontSize(8.5)
-    pdf.text(`OPD Days: ${visit.opdDays}`, margin, y + 4.5)
-    y += 4.5
-  }
-  y += 6
 
-  y = addRoutingBlock(pdf, visit, { y })
-
-  // "OUT PATIENT RECORD" divider.
-  pdf.setLineWidth(0.4)
+  y = Math.max(y + 18, cy + 1)
+  pdf.setDrawColor(0, 0, 0)
+  pdf.setLineWidth(0.5)
   pdf.line(margin, y, pageWidth - margin, y)
-  pdf.setFontSize(10)
-  pdf.setFont('helvetica', 'bold')
-  pdf.text('OUT PATIENT RECORD', pageWidth / 2, y + 5.5, { align: 'center' })
-  pdf.line(margin, y + 8, pageWidth - margin, y + 8)
-  pdf.setFont('helvetica', 'normal')
-  y += 14
 
-  // Two-column record block. The QR sits at the top of the right column.
-  const colWidth = contentWidth / 2 - 4
-  const rightX = margin + contentWidth / 2 + 4
-  const qr = await uhidQrDataUrl(patient?.uhid || visit?.patientUhid)
-  let rightY = y
-  if (qr) {
-    const qrSize = 24
-    pdf.addImage(qr, 'PNG', pageWidth - margin - qrSize, rightY, qrSize, qrSize)
-    pdf.setFontSize(7)
-    pdf.text('Scan for UHID', pageWidth - margin - qrSize / 2, rightY + qrSize + 3, { align: 'center' })
-    rightY += qrSize + 7
+  // ---- RECORD BANNER ------------------------------------------------------
+  const bannerH = 6
+  pdf.setFillColor(237, 242, 247)
+  pdf.rect(margin, y, contentWidth, bannerH, 'F')
+  pdf.setLineWidth(0.4)
+  pdf.rect(margin, y, contentWidth, bannerH)
+  pdf.setFontSize(9.5)
+  pdf.setFont('helvetica', 'bold')
+  pdf.text('OUT  PATIENT  RECORD', pageWidth / 2, y + 4.2, { align: 'center' })
+  pdf.setFont('helvetica', 'normal')
+  y += bannerH
+
+  // ---- DEMOGRAPHICS BOX ---------------------------------------------------
+  const infoTop = y
+  const padX = 3
+  const leftX = margin + padX
+  const rightColW = 72
+  const dividerX = pageWidth - margin - rightColW - padX
+  const rightX = dividerX + padX
+  const leftColW = dividerX - padX - leftX
+  const rightUsableW = pageWidth - margin - padX - rightX
+
+  const infoRow = (label, value, { x, ry, labelW, colW, danger }) => {
+    pdf.setFontSize(7.5)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setTextColor(45, 55, 72)
+    pdf.text(label, x, ry)
+    pdf.setTextColor(...(danger ? [197, 48, 48] : [0, 0, 0]))
+    const lines = pdf.splitTextToSize(`: ${value ?? '---'}`, colW - labelW)
+    pdf.text(lines, x + labelW, ry)
+    pdf.setTextColor(0, 0, 0)
+    return ry + Math.max(lines.length, 1) * 3.5 + 0.7
   }
 
-  pdf.setFontSize(8.5)
-  const leftEnd = addFieldColumn(pdf, [
+  const isMlc = patient?.patientType === 'mlc'
+  const ageSex = [
+    formatAge(patient?.dob),
+    patient?.gender && patient.gender[0].toUpperCase() + patient.gender.slice(1),
+  ].filter(Boolean).join(' / ')
+
+  let ly = infoTop + 5
+  const leftRows = [
     ['Name', patient?.name || visit?.patientName],
     ['Department', visit?.departmentName],
-    ['Dept. Reg. No.', visit?.deptRegNo],
-    ['Date of Regn.', visit?.visitDate
+    ['Dept No.', visit?.deptRegNo],
+    ['Date of Registration', visit?.visitDate
       ? new Date(visit.visitDate).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
       : null],
     ['Unit', visit?.unit],
-    ['Age', formatAge(patient?.dob)],
+    ['Age / Sex', ageSex],
     ['Billing Type', BILLING_TYPE_LABELS[visit?.billingType] || visit?.billingType],
-    ['Mobile', maskPhone(patient?.phone)],
-    ['Address', [patient?.address, patient?.city, patient?.pincode].filter(Boolean).join(', ')],
-  ], { x: margin, y, labelWidth: 26, colWidth })
+    ['Mobile No', maskPhone(patient?.phone)],
+    ['Address', [patient?.address, patient?.city, patient?.state, patient?.pincode]
+      .filter(Boolean).join(', ')],
+  ]
+  for (const [label, value] of leftRows) {
+    ly = infoRow(label, value, { x: leftX, ry: ly, labelW: 30, colW: leftColW })
+  }
+  ly = infoRow('Patient Type', isMlc ? 'MLC' : 'NON MLC',
+    { x: leftX, ry: ly, labelW: 30, colW: leftColW, danger: isMlc })
 
-  const rightEnd = addFieldColumn(pdf, [
-    ['UHID', patient?.uhid || visit?.patientUhid],
-    ['ABHA ID', patient?.abhaId],
-    ['Fee', visit?.feeAmount != null ? `Rs. ${visit.feeAmount}` : null],
-    ['Sex', patient?.gender ? patient.gender[0].toUpperCase() + patient.gender.slice(1) : null],
+  // Right column: ABHA QR + identity, then the counter/billing fields.
+  let ry = infoTop + 4
+  const qr = await uhidQrDataUrl(patient?.abhaAddress || patient?.abhaId || uhid)
+  if (qr) {
+    const qrSize = 16
+    pdf.addImage(qr, 'PNG', rightX, ry, qrSize, qrSize)
+    pdf.setDrawColor(203, 213, 224)
+    pdf.setLineWidth(0.2)
+    pdf.rect(rightX, ry, qrSize, qrSize)
+
+    const abhaX = rightX + qrSize + 3
+    const abhaW = pageWidth - margin - padX - abhaX
+    pdf.setFontSize(7.5)
+    pdf.setFont('courier', 'bold')
+    pdf.setTextColor(0, 0, 0)
+    pdf.text(pdf.splitTextToSize(patient?.abhaId || 'ABHA not linked', abhaW), abhaX, ry + 3.5)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(6.5)
+    pdf.setTextColor(74, 85, 104)
+    if (patient?.abhaAddress) {
+      pdf.text(pdf.splitTextToSize(patient.abhaAddress, abhaW), abhaX, ry + 7.5)
+    }
+    if (patient?.abhaId) {
+      pdf.setDrawColor(144, 205, 244)
+      pdf.setTextColor(43, 108, 176)
+      pdf.setFont('helvetica', 'bold')
+      pdf.setFontSize(6)
+      pdf.rect(abhaX, ry + 10, 20, 4)
+      pdf.text('ABHA LINKED', abhaX + 10, ry + 12.8, { align: 'center' })
+    }
+    pdf.setTextColor(0, 0, 0)
+    pdf.setFont('helvetica', 'normal')
+    ry += qrSize + 3
+  }
+
+  const rightRows = [
+    ['Fee', visit?.feeAmount != null ? Number(visit.feeAmount).toFixed(2) : null],
     [patient?.relationType || 'S/O', patient?.guardianName],
     ['Email', patient?.email],
     ['Occupation', patient?.occupation],
-    ['Prepared By', visit?.preparedByName || visit?.registeredByName],
-  ], { x: rightX, y: rightY, labelWidth: 26, colWidth })
+    ['Prepared by', visit?.preparedByName || visit?.registeredByName],
+  ]
+  for (const [label, value] of rightRows) {
+    ry = infoRow(label, value, { x: rightX, ry, labelW: 22, colW: rightUsableW })
+  }
 
-  y = Math.max(leftEnd, rightEnd) + 3
+  const infoBottom = Math.max(ly, ry) + 2
+  pdf.setDrawColor(0, 0, 0)
+  pdf.setLineWidth(0.4)
+  pdf.line(margin, infoTop, margin, infoBottom)
+  pdf.line(pageWidth - margin, infoTop, pageWidth - margin, infoBottom)
+  pdf.line(margin, infoBottom, pageWidth - margin, infoBottom)
+  pdf.setDrawColor(203, 213, 224)
+  pdf.setLineWidth(0.2)
+  pdf.setLineDashPattern([0.8, 0.8], 0)
+  pdf.line(dividerX, infoTop + 2, dividerX, infoBottom - 2)
+  pdf.setLineDashPattern([], 0)
 
-  if (patient?.patientType === 'mlc') {
+  // ---- CLINICAL AREA (left blank for handwriting) -------------------------
+  const footerTop = pageHeight - 20
+  const clinTop = infoBottom
+  const clinBottom = footerTop - 4
+  pdf.setDrawColor(0, 0, 0)
+  pdf.setLineWidth(0.4)
+  pdf.rect(margin, clinTop, contentWidth, clinBottom - clinTop)
+
+  const splitX = margin + contentWidth * 0.32
+  pdf.setDrawColor(203, 213, 224)
+  pdf.setLineWidth(0.2)
+  pdf.line(splitX, clinTop, splitX, clinBottom)
+
+  const heading = (text, hx, hy, hw) => {
+    pdf.setFontSize(8)
     pdf.setFont('helvetica', 'bold')
-    pdf.setTextColor(180, 0, 0)
-    pdf.setFontSize(10)
-    pdf.text('MEDICO-LEGAL CASE (MLC)', margin, y + 2)
+    pdf.setTextColor(...NAVY)
+    pdf.text(text, hx, hy)
+    pdf.setDrawColor(226, 232, 240)
+    pdf.setLineWidth(0.2)
+    pdf.line(hx, hy + 1.5, hx + hw, hy + 1.5)
     pdf.setTextColor(0, 0, 0)
     pdf.setFont('helvetica', 'normal')
-    y += 7
   }
 
+  heading('HISTORY / VITALS / INVESTIGATIONS', margin + 3, clinTop + 6, splitX - margin - 6)
+  heading('CLINICAL NOTES / DIAGNOSIS / ADVICE (Rx)', splitX + 4, clinTop + 6,
+    pageWidth - margin - splitX - 8)
+
+  // The counter already knows the complaint — printing it saves the doctor
+  // re-asking, and it is the only thing pre-filled in the writing area.
   if (visit?.chiefComplaint) {
-    pdf.setFontSize(8.5)
+    pdf.setFontSize(7.5)
     pdf.setFont('helvetica', 'bold')
-    pdf.text('Chief Complaint:', margin, y + 2)
+    pdf.text('C/O:', margin + 3, clinTop + 12)
     pdf.setFont('helvetica', 'normal')
-    pdf.text(pdf.splitTextToSize(visit.chiefComplaint, contentWidth - 30), margin + 30, y + 2)
-    y += 8
+    pdf.text(
+      pdf.splitTextToSize(visit.chiefComplaint, splitX - margin - 16),
+      margin + 12, clinTop + 12
+    )
+  }
+  if (patient?.allergies?.length) {
+    pdf.setFontSize(7.5)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setTextColor(197, 48, 48)
+    pdf.text(
+      pdf.splitTextToSize(`ALLERGIES: ${patient.allergies.join(', ')}`, splitX - margin - 6),
+      margin + 3, clinBottom - 6
+    )
+    pdf.setTextColor(0, 0, 0)
+    pdf.setFont('helvetica', 'normal')
   }
 
-  // Everything below here is deliberately left empty for the doctor's
-  // handwritten notes — faint rules only, no printed content.
-  pdf.setLineWidth(0.3)
-  pdf.line(margin, y, pageWidth - margin, y)
-  y += 6
-  pdf.setFontSize(8)
-  pdf.setFont('helvetica', 'italic')
-  pdf.text("Doctor's Notes / Rx", margin, y)
-  pdf.setFont('helvetica', 'normal')
-  y += 5
-
-  pdf.setDrawColor(200, 200, 200)
-  pdf.setLineWidth(0.15)
-  for (let lineY = y; lineY < pageHeight - 20; lineY += 8) {
-    pdf.line(margin, lineY, pageWidth - margin, lineY)
-  }
+  // Follow-up + signature footer inside the Rx column.
+  pdf.setFontSize(7.5)
+  pdf.setTextColor(74, 85, 104)
+  pdf.text('Next Follow up: ______________________', splitX + 4, clinBottom - 6)
+  pdf.setTextColor(0, 0, 0)
   pdf.setDrawColor(0, 0, 0)
+  pdf.setLineWidth(0.3)
+  const signW = 46
+  const signX = pageWidth - margin - 4 - signW
+  pdf.line(signX, clinBottom - 9, signX + signW, clinBottom - 9)
+  pdf.setFontSize(7.5)
+  pdf.setFont('helvetica', 'bold')
+  pdf.text("Doctor's Signature & Stamp", signX + signW / 2, clinBottom - 5.5, { align: 'center' })
+  pdf.setFont('helvetica', 'normal')
 
-  addFooter(pdf, { text: 'Please show this slip at the department reception.' })
+  // ---- FOOTER -------------------------------------------------------------
+  pdf.setDrawColor(0, 0, 0)
+  pdf.setLineWidth(0.4)
+  pdf.line(margin, footerTop, pageWidth - margin, footerTop)
+  pdf.setFontSize(7.5)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setTextColor(197, 48, 48)
+  pdf.text(
+    'Fine of Rs. 500 will be charged from any person found consuming tobacco products in hospital premises.',
+    pageWidth / 2, footerTop + 4.5, { align: 'center' }
+  )
+  pdf.setTextColor(113, 128, 150)
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(6.5)
+  pdf.text('Please show this slip at the department reception.', margin, footerTop + 9.5)
+  pdf.text(
+    new Date().toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }),
+    pageWidth / 2, footerTop + 9.5, { align: 'center' }
+  )
+  pdf.text('Page 1 of 1', pageWidth - margin, footerTop + 9.5, { align: 'right' })
+  pdf.setTextColor(0, 0, 0)
+
   return pdf
 }
 

@@ -2369,6 +2369,15 @@ a:hover { text-decoration: underline; }
 }
 .invoice-payments-block .invoice-label { margin-bottom: 0.4rem; }
 
+.quick-add-dept-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.35rem 1rem;
+  max-height: 340px;
+  overflow-y: auto;
+  margin-bottom: 1rem;
+}
+
 .self-checkin-qr {
   display: flex;
   flex-direction: column;
