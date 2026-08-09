@@ -3,6 +3,19 @@ import QRCode from 'qrcode'
 import { departmentSummary } from './departments'
 import { formatAge, maskPhone, BILLING_TYPE_LABELS } from './patients'
 import { drawBarcode } from './barcode'
+import { amountInWords } from './amountWords'
+
+// Kept local rather than imported from lib/billing so the PDF layer stays free
+// of the Supabase client — these documents are also built in scripts and tests.
+const PAYMENT_MODE_LABELS_PDF = {
+  cash: 'Cash', upi: 'UPI', card: 'Card',
+  insurance: 'Insurance / TPA', bank_transfer: 'Bank Transfer', cheque: 'Cheque',
+}
+
+const SOURCE_LABELS = {
+  opd: 'Consultation', ipd: 'Bed / Room', pharmacy: 'Pharmacy',
+  lab: 'Diagnostics', manual: 'Other Charge',
+}
 
 // The "where do I go" strip. Patients read this at the counter, so it prints
 // boxed and bold rather than folded into the body text.
@@ -798,6 +811,506 @@ export function buildIpdAdmissionSlipPDF({ facility, patient, admission }) {
   pdf.text('Page 1 of 1', pageWidth - margin, footerTop + 9.5, { align: 'right' })
   pdf.setTextColor(0, 0, 0)
 
+  return pdf
+}
+
+// ---------------------------------------------------------------------------
+// Shared building blocks for the printed hospital documents (bill, pharmacy
+// invoice, discharge summary). They all share one house style: branded header
+// with a scannable barcode, a grey banner, a bordered two-column demographics
+// block, and bordered tables.
+// ---------------------------------------------------------------------------
+
+const NAVY = [26, 54, 93]
+
+// Branded header. `docLabel` prints in the badge on the right, above the
+// barcode of `docNumber`. Returns the y the header ends on.
+function drawDocHeader(pdf, facility, { docLabel, docNumber, numberPrefix = 'NO', extraLine, accent = NAVY }) {
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const margin = 12
+  let y = 12
+
+  const rightW = 46
+  const rightX = pageWidth - margin - rightW
+  const leftW = rightX - margin - 6
+
+  pdf.setFontSize(15)
+  pdf.setFont('helvetica', 'bold')
+  const nameLines = pdf.splitTextToSize(String(facility?.facilityName || 'Hospital').toUpperCase(), leftW)
+  pdf.text(nameLines, margin, y + 5)
+  let ly = y + 5 + nameLines.length * 5.6
+
+  pdf.setFontSize(8.5)
+  pdf.setFont('helvetica', 'normal')
+  pdf.setTextColor(45, 55, 72)
+  const addressLine = [facility?.address, facility?.city, facility?.state, facility?.pincode]
+    .filter(Boolean).join(', ')
+  if (addressLine) {
+    const lines = pdf.splitTextToSize(addressLine, leftW)
+    pdf.text(lines, margin, ly)
+    ly += lines.length * 3.9
+  }
+  pdf.setFontSize(7.5)
+  pdf.setTextColor(74, 85, 104)
+  const contact = [
+    facility?.phone && `Phone: ${facility.phone}`,
+    facility?.email,
+    facility?.gstin && `GSTIN: ${facility.gstin}`,
+  ].filter(Boolean).join('  |  ')
+  if (contact) {
+    const lines = pdf.splitTextToSize(contact, leftW)
+    pdf.text(lines, margin, ly)
+    ly += lines.length * 3.4
+  }
+  if (extraLine) {
+    const lines = pdf.splitTextToSize(extraLine, leftW)
+    pdf.text(lines, margin, ly)
+    ly += lines.length * 3.4
+  }
+  pdf.setTextColor(0, 0, 0)
+
+  // Right: document badge + barcode.
+  pdf.setFillColor(...accent)
+  pdf.rect(rightX, y, rightW, 6, 'F')
+  pdf.setFontSize(6.8)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setTextColor(255, 255, 255)
+  pdf.text(String(docLabel).toUpperCase(), rightX + rightW / 2, y + 4.1, { align: 'center' })
+  pdf.setTextColor(0, 0, 0)
+
+  const drawn = docNumber
+    ? drawBarcode(pdf, docNumber, { x: rightX, y: y + 8, width: rightW, height: 10 })
+    : false
+  pdf.setFontSize(7.5)
+  pdf.setFont('courier', 'bold')
+  pdf.text(
+    `${numberPrefix}: ${docNumber || '--'}`,
+    pageWidth - margin,
+    y + (drawn ? 22 : 12),
+    { align: 'right' }
+  )
+  pdf.setFont('helvetica', 'normal')
+
+  y = Math.max(ly + 1, y + (drawn ? 24 : 14))
+  pdf.setDrawColor(0, 0, 0)
+  pdf.setLineWidth(0.5)
+  pdf.line(margin, y, pageWidth - margin, y)
+  return y
+}
+
+// Grey title strip with a label on the left and a date on the right.
+function drawDocBanner(pdf, { y, left, right }) {
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const margin = 12
+  const w = pageWidth - margin * 2
+  pdf.setFillColor(237, 242, 247)
+  pdf.rect(margin, y, w, 6, 'F')
+  pdf.setDrawColor(0, 0, 0)
+  pdf.setLineWidth(0.4)
+  pdf.rect(margin, y, w, 6)
+  pdf.setFontSize(8)
+  pdf.setFont('helvetica', 'bold')
+  pdf.text(String(left).toUpperCase(), margin + 3, y + 4.1)
+  if (right) pdf.text(String(right).toUpperCase(), pageWidth - margin - 3, y + 4.1, { align: 'right' })
+  pdf.setFont('helvetica', 'normal')
+  return y + 6
+}
+
+// Bordered two-column "Label : Value" block.
+function drawDetailsBox(pdf, { y, leftRows, rightRows, labelW = 30 }) {
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const margin = 12
+  const contentWidth = pageWidth - margin * 2
+  const padX = 3
+  const dividerX = margin + contentWidth / 2
+  const colW = contentWidth / 2 - padX * 2
+  const top = y
+
+  const renderCol = (rows, x) => {
+    let ry = top + 5
+    for (const [label, value, danger] of rows) {
+      pdf.setFontSize(7.5)
+      pdf.setFont('helvetica', 'bold')
+      pdf.setTextColor(74, 85, 104)
+      pdf.text(label, x, ry)
+      pdf.setTextColor(...(danger ? [197, 48, 48] : [0, 0, 0]))
+      const lines = pdf.splitTextToSize(`: ${value ?? '---'}`, colW - labelW)
+      pdf.text(lines, x + labelW, ry)
+      pdf.setTextColor(0, 0, 0)
+      ry += Math.max(lines.length, 1) * 3.5 + 0.7
+    }
+    return ry
+  }
+
+  const endLeft = renderCol(leftRows, margin + padX)
+  const endRight = renderCol(rightRows, dividerX + padX)
+  const bottom = Math.max(endLeft, endRight) + 2
+
+  pdf.setDrawColor(0, 0, 0)
+  pdf.setLineWidth(0.4)
+  pdf.line(margin, top, margin, bottom)
+  pdf.line(pageWidth - margin, top, pageWidth - margin, bottom)
+  pdf.line(margin, bottom, pageWidth - margin, bottom)
+  pdf.setDrawColor(203, 213, 224)
+  pdf.setLineWidth(0.2)
+  pdf.setLineDashPattern([0.8, 0.8], 0)
+  pdf.line(dividerX, top + 2, dividerX, bottom - 2)
+  pdf.setLineDashPattern([], 0)
+  return bottom
+}
+
+// Bordered table with a filled header row, zebra body rows, and per-column
+// alignment. Breaks to a new page and repeats the header when it runs out.
+function drawDocTable(pdf, { y, headers, rows, widths, align = [], fontSize = 7.5, headerFill = NAVY, bottomLimit }) {
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const pageHeight = pdf.internal.pageSize.getHeight()
+  const margin = 12
+  const limit = bottomLimit ?? pageHeight - 30
+  const rowPadX = 2
+  let cursor = y
+
+  const drawHeader = () => {
+    pdf.setFillColor(...headerFill)
+    pdf.rect(margin, cursor, widths.reduce((a, b) => a + b, 0), 6, 'F')
+    pdf.setFontSize(fontSize - 0.5)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setTextColor(255, 255, 255)
+    let x = margin
+    headers.forEach((h, i) => {
+      const a = align[i] || 'left'
+      const tx = a === 'right' ? x + widths[i] - rowPadX : a === 'center' ? x + widths[i] / 2 : x + rowPadX
+      pdf.text(String(h), tx, cursor + 4.1, { align: a })
+      x += widths[i]
+    })
+    pdf.setTextColor(0, 0, 0)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setDrawColor(0, 0, 0)
+    pdf.setLineWidth(0.3)
+    pdf.rect(margin, cursor, widths.reduce((a, b) => a + b, 0), 6)
+    cursor += 6
+  }
+
+  drawHeader()
+
+  rows.forEach((row, idx) => {
+    // Measure the tallest cell so a long description doesn't overlap.
+    pdf.setFontSize(fontSize)
+    const wrapped = row.map((cell, i) =>
+      pdf.splitTextToSize(String(cell ?? ''), widths[i] - rowPadX * 2)
+    )
+    const rowH = Math.max(...wrapped.map((w) => w.length)) * 3.6 + 2.6
+
+    if (cursor + rowH > limit) {
+      pdf.addPage()
+      cursor = 15
+      drawHeader()
+    }
+
+    if (idx % 2 === 1) {
+      pdf.setFillColor(248, 250, 252)
+      pdf.rect(margin, cursor, widths.reduce((a, b) => a + b, 0), rowH, 'F')
+    }
+
+    let x = margin
+    wrapped.forEach((lines, i) => {
+      const a = align[i] || 'left'
+      const tx = a === 'right' ? x + widths[i] - rowPadX : a === 'center' ? x + widths[i] / 2 : x + rowPadX
+      pdf.text(lines, tx, cursor + 3.8, { align: a })
+      pdf.setDrawColor(203, 213, 224)
+      pdf.setLineWidth(0.15)
+      pdf.rect(x, cursor, widths[i], rowH)
+      x += widths[i]
+    })
+    cursor += rowH
+  })
+
+  pdf.setDrawColor(0, 0, 0)
+  pdf.setLineWidth(0.4)
+  pdf.line(margin, cursor, pageWidth - margin, cursor)
+  return cursor
+}
+
+// Amount-in-words card + right-hand calculation column, in a boxed strip.
+function drawTotalsBox(pdf, { y, wordsText, metaLines = [], calcRows }) {
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const margin = 12
+  const contentWidth = pageWidth - margin * 2
+  const calcW = 74
+  const calcX = pageWidth - margin - calcW
+  const leftW = calcW ? calcX - margin - 6 : contentWidth
+  const top = y
+
+  // Left: words card.
+  pdf.setDrawColor(160, 174, 192)
+  pdf.setLineWidth(0.2)
+  const wordsLines = pdf.splitTextToSize(wordsText || '', leftW - 6)
+  const wordsH = wordsLines.length * 3.8 + 9
+  pdf.setFillColor(255, 255, 255)
+  pdf.rect(margin + 3, top + 3, leftW, wordsH, 'FD')
+  pdf.setFontSize(6.5)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setTextColor(113, 128, 150)
+  pdf.text('AMOUNT IN WORDS', margin + 6, top + 7.5)
+  pdf.setFontSize(8)
+  pdf.setTextColor(...NAVY)
+  pdf.text(wordsLines, margin + 6, top + 12)
+  pdf.setTextColor(0, 0, 0)
+  pdf.setFont('helvetica', 'normal')
+
+  let metaY = top + wordsH + 7
+  pdf.setFontSize(7.5)
+  for (const line of metaLines.filter(Boolean)) {
+    pdf.text(pdf.splitTextToSize(line, leftW), margin + 3, metaY)
+    metaY += 4
+  }
+
+  // Right: calculation rows.
+  let cy = top + 6
+  for (const { label, value, style } of calcRows) {
+    if (style === 'grand') {
+      pdf.setDrawColor(0, 0, 0)
+      pdf.setLineWidth(0.4)
+      pdf.line(calcX, cy - 3.5, calcX + calcW, cy - 3.5)
+      pdf.setFontSize(10)
+      pdf.setFont('helvetica', 'bold')
+      pdf.setTextColor(...NAVY)
+    } else if (style === 'paid') {
+      pdf.setFontSize(8.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(39, 103, 73)
+    } else if (style === 'due') {
+      pdf.setFontSize(8.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(197, 48, 48)
+    } else if (style === 'minus') {
+      pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(197, 48, 48)
+    } else {
+      pdf.setFontSize(7.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(0, 0, 0)
+    }
+    pdf.text(label, calcX, cy)
+    pdf.text(String(value), calcX + calcW, cy, { align: 'right' })
+    if (style === 'grand') {
+      pdf.setLineWidth(0.4)
+      pdf.line(calcX, cy + 2, calcX + calcW, cy + 2)
+      cy += 4
+    }
+    pdf.setTextColor(0, 0, 0)
+    cy += style === 'grand' ? 5 : 4.4
+  }
+
+  const bottom = Math.max(metaY + 1, cy + 1, top + wordsH + 8)
+  pdf.setDrawColor(0, 0, 0)
+  pdf.setLineWidth(0.5)
+  pdf.rect(margin, top, contentWidth, bottom - top)
+  pdf.setDrawColor(203, 213, 224)
+  pdf.setLineWidth(0.2)
+  pdf.line(calcX - 3, top + 2, calcX - 3, bottom - 2)
+  return bottom
+}
+
+// Verification QR on the left, signature block on the right.
+async function drawSignatureStrip(pdf, { y, qrValue, qrTitle, qrLines = [], signName, signRole }) {
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const margin = 12
+  pdf.setDrawColor(0, 0, 0)
+  pdf.setLineWidth(0.4)
+  pdf.line(margin, y, pageWidth - margin, y)
+
+  const qr = qrValue ? await uhidQrDataUrl(qrValue) : null
+  if (qr) {
+    const size = 17
+    pdf.addImage(qr, 'PNG', margin + 2, y + 3, size, size)
+    pdf.setDrawColor(203, 213, 224)
+    pdf.setLineWidth(0.2)
+    pdf.rect(margin + 2, y + 3, size, size)
+    const tx = margin + size + 6
+    pdf.setFontSize(7.5)
+    pdf.setFont('helvetica', 'bold')
+    pdf.text(qrTitle || 'Scan to verify', tx, y + 7)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(6.8)
+    pdf.setTextColor(74, 85, 104)
+    qrLines.filter(Boolean).forEach((line, i) => pdf.text(String(line), tx, y + 11 + i * 3.4))
+    pdf.setTextColor(0, 0, 0)
+  }
+
+  const signW = 52
+  const signX = pageWidth - margin - signW
+  pdf.setDrawColor(0, 0, 0)
+  pdf.setLineWidth(0.3)
+  pdf.line(signX, y + 16, signX + signW, y + 16)
+  pdf.setFontSize(7.5)
+  pdf.setFont('helvetica', 'bold')
+  pdf.text(signName || '', signX + signW / 2, y + 19.5, { align: 'center' })
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(6.5)
+  pdf.setTextColor(113, 128, 150)
+  pdf.text(signRole || '', signX + signW / 2, y + 23, { align: 'center' })
+  pdf.setTextColor(0, 0, 0)
+  return y + 26
+}
+
+function drawDocFooter(pdf, { terms = [], moduleName }) {
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const pageHeight = pdf.internal.pageSize.getHeight()
+  const margin = 12
+  const top = pageHeight - 18
+  pdf.setDrawColor(203, 213, 224)
+  pdf.setLineWidth(0.2)
+  pdf.setLineDashPattern([0.8, 0.8], 0)
+  pdf.line(margin, top, pageWidth - margin, top)
+  pdf.setLineDashPattern([], 0)
+  pdf.setFontSize(6.2)
+  pdf.setFont('helvetica', 'normal')
+  pdf.setTextColor(113, 128, 150)
+  terms.filter(Boolean).forEach((t, i) => {
+    pdf.text(pdf.splitTextToSize(`${i + 1}. ${t}`, pageWidth - margin * 2 - 30), margin, top + 4 + i * 3.2)
+  })
+  if (moduleName) pdf.text(moduleName, pageWidth - margin, top + 4, { align: 'right' })
+  pdf.text('Page 1 of 1', pageWidth - margin, top + 7.2, { align: 'right' })
+  pdf.setTextColor(0, 0, 0)
+}
+
+// Hospital bill / tax invoice — the sheet the billing counter hands over.
+export async function buildHospitalInvoicePDF({ facility, patient, invoice }) {
+  const pdf = createPDF()
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const margin = 12
+
+  const isIpd = (invoice?.sourceAdmissionIds || []).length > 0
+  const total = Number(invoice?.total ?? invoice?.grandTotal ?? 0)
+  const credited = Number(invoice?.creditedAmount) || 0
+  const paid = Number(invoice?.paidAmount) || 0
+  const balance = invoice?.balanceDue != null
+    ? Number(invoice.balanceDue)
+    : Math.max(total - credited - paid, 0)
+  const gross = Number(invoice?.subtotal) || 0
+  const discount = Number(invoice?.discount) || 0
+  const gst = Number(invoice?.gstAmount) || 0
+  const payments = invoice?.payments || []
+
+  let y = drawDocHeader(pdf, facility, {
+    docLabel: isIpd ? 'IPD Bill / Tax Invoice' : 'OPD Receipt / Tax Invoice',
+    docNumber: invoice?.invoiceNumber,
+    numberPrefix: 'INV',
+  })
+
+  y = drawDocBanner(pdf, {
+    y,
+    left: 'Patient Bill & Cash Receipt (Original for Recipient)',
+    right: `Date: ${invoice?.invoiceDate
+      ? new Date(invoice.invoiceDate).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+      : '--'}`,
+  })
+
+  const ageSex = [
+    formatAge(patient?.dob),
+    patient?.gender && patient.gender[0].toUpperCase() + patient.gender.slice(1),
+  ].filter(Boolean).join(' / ')
+
+  y = drawDetailsBox(pdf, {
+    y,
+    leftRows: [
+      ['Patient Name', invoice?.patientName || patient?.name],
+      ['Age / Sex', ageSex],
+      ['UHID Number', invoice?.patientUhid || patient?.uhid],
+      ['Mobile No', maskPhone(patient?.phone)],
+    ],
+    rightRows: [
+      ['Department', invoice?.departmentName],
+      ['Consulting Doctor', invoice?.doctorName ? `Dr. ${invoice.doctorName}` : null],
+      ['Billing Mode', PAYMENT_MODE_LABELS_PDF[invoice?.paymentMode] || invoice?.paymentMode],
+      ['ABHA ID / ABDM', patient?.abhaId],
+    ],
+    labelW: 32,
+  })
+
+  y += 4
+
+  // Our line items carry a description, a source and an amount — quantity and
+  // per-line discount aren't captured, so they print as 1 x net rather than
+  // inventing figures the bill can't back up.
+  const items = invoice?.lineItems || invoice?.items || []
+  y = drawDocTable(pdf, {
+    y,
+    headers: ['#', 'Service / Charge Description', 'Category', 'Qty', 'Rate (Rs.)', 'Net Amt (Rs.)'],
+    widths: [8, 90, 26, 12, 25, 25],
+    align: ['center', 'left', 'left', 'center', 'right', 'right'],
+    rows: items.map((it, i) => [
+      i + 1,
+      it.description || '--',
+      SOURCE_LABELS[it.source] || it.source || 'Other',
+      1,
+      Number(it.amount || 0).toFixed(2),
+      Number(it.amount || 0).toFixed(2),
+    ]),
+    bottomLimit: pdf.internal.pageSize.getHeight() - 110,
+  })
+
+  y += 4
+
+  const lastPayment = payments[payments.length - 1]
+  y = drawTotalsBox(pdf, {
+    y,
+    wordsText: amountInWords(total - credited),
+    metaLines: [
+      `Payment Mode: ${(PAYMENT_MODE_LABELS_PDF[invoice?.paymentMode] || invoice?.paymentMode || '--').toUpperCase()}`
+        + (lastPayment?.referenceNumber ? `   |   Ref: ${lastPayment.referenceNumber}` : ''),
+      invoice?.insuranceClaim
+        ? `Insurance / TPA: ${invoice.insuranceClaim.tpaName || '--'} (${invoice.insuranceClaim.status || 'submitted'})`
+        : '',
+      invoice?.discountReason ? `Concession reason: ${invoice.discountReason}` : '',
+      payments.length > 1 ? `${payments.length} part-payments received against this invoice.` : '',
+    ],
+    calcRows: [
+      { label: 'Gross Service Amount', value: `Rs. ${gross.toFixed(2)}` },
+      ...(discount > 0 ? [{ label: 'Concession / Discount', value: `- Rs. ${discount.toFixed(2)}`, style: 'minus' }] : []),
+      { label: gst > 0 ? 'Tax / GST' : 'Tax / GST (Healthcare Exempt)', value: `Rs. ${gst.toFixed(2)}` },
+      ...(credited > 0 ? [{ label: 'Credit Notes Issued', value: `- Rs. ${credited.toFixed(2)}`, style: 'minus' }] : []),
+      { label: 'Net Payable', value: `Rs. ${(total - credited).toFixed(2)}`, style: 'grand' },
+      { label: 'Amount Received', value: `Rs. ${paid.toFixed(2)}`, style: 'paid' },
+      { label: 'Balance Due', value: balance > 0 ? `Rs. ${balance.toFixed(2)}` : 'Rs. 0.00 (NIL)', style: 'due' },
+    ],
+  })
+
+  // Part-payment history — the reason a patient's receipt shows less than the
+  // bill total, so it has to be on the paper they take home.
+  if (payments.length > 1) {
+    y += 4
+    pdf.setFontSize(7)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setTextColor(...NAVY)
+    pdf.text('PAYMENT HISTORY', margin, y)
+    pdf.setTextColor(0, 0, 0)
+    pdf.setFont('helvetica', 'normal')
+    y = drawDocTable(pdf, {
+      y: y + 1.5,
+      headers: ['Date', 'Mode', 'Reference', 'Amount (Rs.)'],
+      widths: [45, 40, 66, 35],
+      align: ['left', 'left', 'left', 'right'],
+      headerFill: [113, 128, 150],
+      rows: payments.map((p) => [
+        p.paymentDate ? new Date(p.paymentDate).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }) : '--',
+        PAYMENT_MODE_LABELS_PDF[p.mode] || p.mode,
+        p.referenceNumber || '--',
+        Number(p.amount || 0).toFixed(2),
+      ]),
+    })
+  }
+
+  const sigY = Math.max(y + 6, pdf.internal.pageSize.getHeight() - 48)
+  await drawSignatureStrip(pdf, {
+    y: sigY,
+    qrValue: invoice?.invoiceNumber,
+    qrTitle: 'Scan to verify this receipt',
+    qrLines: [`Invoice: ${invoice?.invoiceNumber || '--'}`, `UHID: ${invoice?.patientUhid || '--'}`],
+    signName: invoice?.cashierName || '',
+    signRole: 'Authorised Cashier / Billing Officer',
+  })
+
+  drawDocFooter(pdf, {
+    terms: [
+      'Healthcare services are exempt from GST under Notification No. 12/2017-Central Tax (Rate).',
+      'Please retain this original receipt for insurance claim / reimbursement purposes.',
+    ],
+    moduleName: 'Billing & Financial Accounting',
+  })
   return pdf
 }
 

@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '@hooks/useAuth'
 import { useFacility } from '@hooks/useFacility'
-import { subscribeToDocument } from '@lib/db'
+import { subscribeToDocument, getDocument } from '@lib/db'
+import { buildHospitalInvoicePDF } from '@lib/pdf'
 import { formatINR, formatDate } from '@lib/utils'
 import { PAYMENT_MODE_LABELS, PAYMENT_MODES, canBill, recordPayment, addCreditNote } from '@lib/billing'
 import { useToast } from '@components/Toast'
@@ -16,6 +17,7 @@ export default function InvoiceView() {
   const toast = useToast()
   const [invoice, setInvoice] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [printing, setPrinting] = useState(false)
   const mayBill = canBill(staffProfile?.role)
 
   useEffect(() => {
@@ -44,14 +46,51 @@ export default function InvoiceView() {
   const creditNotes = invoice.creditNotes || []
   const cancelled = invoice.paymentStatus === 'cancelled'
 
+  // Department and consulting doctor aren't stored on the invoice itself — they
+  // live on whichever visit/admission it was billed from, so they're fetched at
+  // print time rather than duplicated into every invoice document.
+  async function handlePrintPdf() {
+    setPrinting(true)
+    try {
+      const [patient, source] = await Promise.all([
+        invoice.patientId
+          ? getDocument(`facilities/${facilityId}/patients/${invoice.patientId}`)
+          : null,
+        (async () => {
+          const visitId = (invoice.sourceVisitIds || [])[0]
+          if (visitId) return getDocument(`facilities/${facilityId}/opdVisits/${visitId}`)
+          const admissionId = (invoice.sourceAdmissionIds || [])[0]
+          if (admissionId) return getDocument(`facilities/${facilityId}/ipd/admissions/${admissionId}`)
+          return null
+        })(),
+      ])
+      const pdf = await buildHospitalInvoicePDF({
+        facility: facilityConfig || {},
+        patient,
+        invoice: {
+          ...invoice,
+          departmentName: invoice.departmentName || source?.departmentName,
+          doctorName: invoice.doctorName || source?.doctorName,
+          cashierName: staffProfile?.name || '',
+        },
+      })
+      pdf.save(`Invoice-${invoice.invoiceNumber || invoice.id}.pdf`)
+    } catch (err) {
+      console.error('Invoice PDF error:', err)
+      toast.error('Failed to generate the invoice PDF.')
+    } finally {
+      setPrinting(false)
+    }
+  }
+
   return (
     <div>
       <div className="page-header no-print">
         <button className="btn btn-outline" onClick={() => navigate('/billing')}>
           <ChevronLeft size={16} /> Back to Billing
         </button>
-        <button className="btn btn-primary" onClick={() => window.print()}>
-          <Printer size={15} /> Print / Save PDF
+        <button className="btn btn-primary" onClick={handlePrintPdf} disabled={printing}>
+          <Printer size={15} /> {printing ? 'Preparing…' : 'Print / Save PDF'}
         </button>
       </div>
 
