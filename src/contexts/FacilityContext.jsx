@@ -28,6 +28,7 @@ const DEMO_CONFIG = {
     staff: true,
     admin: true,
     reports: true,
+    accounts: true,
   },
   subscription: { plan: 'trial', status: 'trial' },
 }

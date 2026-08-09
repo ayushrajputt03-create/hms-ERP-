@@ -4,12 +4,14 @@ import { useAuth } from '@hooks/useAuth'
 import { useFacility } from '@hooks/useFacility'
 import { useFirestoreCollection } from '@hooks/useFirestoreCollection'
 import { countDocuments } from '@lib/db'
+import { getDashboardStats } from '@lib/accounting'
+import { formatINR } from '@lib/utils'
 import StatCard from '@components/StatCard'
 import PatientSearchBox from '@components/PatientSearchBox'
 import { ROLES } from '@lib/constants'
 import {
   Users, Stethoscope, BedDouble, Receipt, Activity,
-  UserCheck, FlaskConical, Pill, TrendingUp,
+  UserCheck, FlaskConical, Pill, TrendingUp, AlertTriangle,
 } from 'lucide-react'
 
 export default function DashboardPage() {
@@ -28,6 +30,23 @@ export default function DashboardPage() {
       .catch((err) => console.error('Patient count error:', err))
     return () => { live = false }
   }, [facilityId])
+
+  // Today's counts and takings, aggregated in Postgres. These cards used to be
+  // hardcoded strings — "—", "₹0", "0" — which read as real answers. If the
+  // call fails the cards fall back to "—" rather than to a confident zero: not
+  // knowing today's revenue and believing it was nothing are different things.
+  const [stats, setStats] = useState(null)
+  useEffect(() => {
+    if (!facilityId) return
+    let live = true
+    getDashboardStats()
+      .then((s) => { if (live) setStats(s) })
+      .catch((err) => { console.error('Dashboard stats error:', err); if (live) setStats(null) })
+    return () => { live = false }
+  }, [facilityId])
+
+  const stat = (key, fallback = '—') =>
+    stats && stats[key] != null ? stats[key] : fallback
 
   const { data: wards } = useFirestoreCollection(
     facilityId && isModuleEnabled('ipd') ? `facilities/${facilityId}/ipd/wards` : null
@@ -66,8 +85,8 @@ export default function DashboardPage() {
           <StatCard
             icon={Stethoscope}
             label="Today's OPD"
-            value="—"
-            sub="Setup OPD to track"
+            value={stat('opdToday')}
+            sub="visits booked today"
             color="blue"
           />
         )}
@@ -77,7 +96,8 @@ export default function DashboardPage() {
             icon={BedDouble}
             label="Bed Occupancy"
             value={`${occupiedBeds} / ${totalBeds}`}
-            sub={`${totalBeds - occupiedBeds} available`}
+            sub={stats ? `${stats.admitted} admitted, ${totalBeds - occupiedBeds} beds free`
+                       : `${totalBeds - occupiedBeds} available`}
             color="amber"
           />
         )}
@@ -85,17 +105,27 @@ export default function DashboardPage() {
         <StatCard
           icon={Receipt}
           label="Today's Revenue"
-          value="₹0"
-          sub="No transactions yet"
+          value={stats ? formatINR(stats.revenueToday) : '—'}
+          sub="collected today"
           color="green"
         />
+
+        {isModuleEnabled('billing') && (
+          <StatCard
+            icon={AlertTriangle}
+            label="Outstanding"
+            value={stats ? formatINR(stats.outstanding) : '—'}
+            sub="unpaid across all bills"
+            color="amber"
+          />
+        )}
 
         {isModuleEnabled('lab') && (
           <StatCard
             icon={FlaskConical}
             label="Pending Lab"
-            value="0"
-            sub="reports pending"
+            value={stat('labPending')}
+            sub="reports not released"
             color="purple"
           />
         )}
@@ -104,8 +134,8 @@ export default function DashboardPage() {
           <StatCard
             icon={Pill}
             label="Low Stock"
-            value="0"
-            sub="medicines"
+            value={stat('lowStock')}
+            sub="below reorder level"
             color="red"
           />
         )}

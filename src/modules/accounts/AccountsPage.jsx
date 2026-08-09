@@ -5,15 +5,16 @@ import { subscribeToCollection } from '@lib/db'
 import { formatINR, formatDate, toISODate } from '@lib/utils'
 import {
   getTrialBalance, getLedgerLines, getUnbalancedVouchers,
-  trialBalanceTotals, groupByAccountType, canRunPayroll,
+  trialBalanceTotals, groupByAccountType, canRunPayroll, canPostAccounting,
   currentMonth, monthLabel, expenseAccount,
 } from '@lib/accounting'
 import StatCard from '@components/StatCard'
 import ExpensesTab from './ExpensesTab'
 import PayrollTab from './PayrollTab'
+import SettlementsTab from './SettlementsTab'
 import {
   BookOpen, IndianRupee, Receipt, Wallet, TrendingUp, TrendingDown,
-  Download, AlertTriangle, CheckCircle, Layers,
+  Download, AlertTriangle, CheckCircle, Layers, ShieldCheck,
 } from 'lucide-react'
 
 function downloadCSV(filename, headers, rows) {
@@ -41,11 +42,13 @@ export default function AccountsPage() {
   const { staffProfile } = useAuth()
   const role = staffProfile?.role
   const mayRunPayroll = canRunPayroll(role)
+  const maySettle = canPostAccounting(role)
 
   const TABS = [
     { key: 'overview', label: 'Overview', icon: Layers },
     { key: 'expenses', label: 'Expenses', icon: Receipt },
     mayRunPayroll && { key: 'payroll', label: 'Payroll', icon: Wallet },
+    maySettle && { key: 'settlements', label: 'Settlements', icon: ShieldCheck },
     { key: 'ledger', label: 'Ledger & Trial Balance', icon: BookOpen },
   ].filter(Boolean)
 
@@ -55,6 +58,7 @@ export default function AccountsPage() {
   const [expenses, setExpenses] = useState([])
   const [payroll, setPayroll] = useState([])
   const [staff, setStaff] = useState([])
+  const [invoices, setInvoices] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -68,6 +72,15 @@ export default function AccountsPage() {
     ]
     return () => unsubs.forEach((fn) => fn())
   }, [facilityId])
+
+  // Invoices are only needed by Settlements, and billing is the collection most
+  // likely to be large. Subscribing on tab entry keeps the rest of the module
+  // from paying for it.
+  useEffect(() => {
+    if (!facilityId || tab !== 'settlements') return
+    return subscribeToCollection(`facilities/${facilityId}/billing`, (d) =>
+      setInvoices(d.filter((r) => r.type === 'invoice')))
+  }, [facilityId, tab])
 
   if (loading) return <div className="empty-state">Loading accounts…</div>
 
@@ -98,6 +111,9 @@ export default function AccountsPage() {
       {tab === 'expenses' && <ExpensesTab expenses={expenses} month={month} />}
       {tab === 'payroll' && mayRunPayroll && (
         <PayrollTab payroll={payroll} staff={staff} month={month} setMonth={setMonth} />
+      )}
+      {tab === 'settlements' && maySettle && (
+        <SettlementsTab invoices={invoices} staff={staff} />
       )}
       {tab === 'ledger' && <LedgerTab month={month} />}
     </div>

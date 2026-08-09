@@ -106,6 +106,16 @@ export async function getPatientLedger(patientId, { limit = 200 } = {}) {
   return data || []
 }
 
+// Which source records already have a voucher of a given kind. Posting is
+// idempotent server-side, so this is not a safety check — it is so the UI can
+// say "already settled" instead of offering a button that quietly does nothing.
+export async function getPostedSources(sourceType) {
+  const { data, error } = await requireClient()
+    .from('v_ledger_lines').select('source_id').eq('source_type', sourceType)
+  if (error) throw error
+  return new Set((data || []).map((r) => r.source_id))
+}
+
 // Must always come back empty. A non-empty result means an unbalanced voucher
 // reached the ledger, which the posting function is supposed to make
 // impossible — surfaced in the UI rather than left for an audit to find.
@@ -230,6 +240,17 @@ export async function paySalary({ staffId, month, earnings, deductions, mode, re
   })
   if (error) throw error
   return data
+}
+
+// Dashboard tiles, aggregated server-side.
+//
+// Counting these in the browser would mean downloading four whole collections
+// to render six numbers. The facility is taken from the caller's session
+// inside the function, never passed in.
+export async function getDashboardStats() {
+  const { data, error } = await requireClient().rpc('hms_dashboard_stats')
+  if (error) throw error
+  return data || null
 }
 
 export async function getCashPosition() {

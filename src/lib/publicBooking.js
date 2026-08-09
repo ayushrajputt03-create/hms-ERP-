@@ -32,6 +32,9 @@ export async function bookOpdVisitPublic({
 
 const BOOKING_ERRORS = {
   FACILITY_NOT_FOUND: 'This booking link is invalid. Please contact the hospital reception.',
+  // The facility has OPD switched off, so no member of staff is watching a
+  // queue. Booking anyway would hand out a token nobody can honour.
+  OPD_DISABLED: 'Online booking is not available at this hospital. Please visit the reception desk.',
   NAME_REQUIRED: 'Please enter the patient’s name.',
   INVALID_PHONE: 'Please enter a valid 10-digit mobile number.',
   DOCTOR_NOT_FOUND: 'That doctor is no longer available. Please pick another.',

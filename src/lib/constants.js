@@ -62,26 +62,33 @@ export const FACILITY_TYPE_LABELS = {
   diagnostic_lab: 'Diagnostic / Pathology Lab',
 }
 
+// Modules switched on when a facility is first created, by facility type.
+//
+// `accounts` is on for every type on purpose. Expenses, salaries and the
+// general ledger are not a specialty — a solo clinic pays rent and staff the
+// same as a multi-specialty hospital does, and the ledger is written by the
+// billing trigger whether or not anyone can see it. A facility left without
+// this module accrues books nobody can open.
 export const FACILITY_TYPE_MODULES = {
   solo_clinic: {
     dashboard: true, patients: true, opd: true, ipd: false,
     pharmacy: false, lab: false, billing: true, staff: true,
-    admin: true, reports: true,
+    admin: true, reports: true, accounts: true,
   },
   nursing_home: {
     dashboard: true, patients: true, opd: true, ipd: true,
     pharmacy: true, lab: false, billing: true, staff: true,
-    admin: true, reports: true,
+    admin: true, reports: true, accounts: true,
   },
   multi_specialty: {
     dashboard: true, patients: true, opd: true, ipd: true,
     pharmacy: true, lab: true, billing: true, staff: true,
-    admin: true, reports: true,
+    admin: true, reports: true, accounts: true,
   },
   diagnostic_lab: {
     dashboard: true, patients: true, opd: false, ipd: false,
     pharmacy: false, lab: true, billing: true, staff: true,
-    admin: true, reports: true,
+    admin: true, reports: true, accounts: true,
   },
 }
 
