@@ -6,7 +6,7 @@ import { subscribeToCollection, updateDocument, getDocument } from '@lib/db'
 import { toISODate } from '@lib/utils'
 import { buildOpdSlipPDF } from '@lib/pdf'
 import { departmentSummary } from '@lib/departments'
-import { ListOrdered, CheckCircle, Clock, UserCheck, XCircle, Printer, UserPlus } from 'lucide-react'
+import { ListOrdered, CheckCircle, Clock, UserCheck, XCircle, Printer, UserPlus, QrCode } from 'lucide-react'
 
 const STATUS_ICONS = {
   booked: Clock,
@@ -41,9 +41,12 @@ export default function QueueScreen() {
     return () => unsubs.forEach((fn) => fn())
   }, [facilityId, today])
 
-  const filtered = selectedDoctor === 'all'
+  const byDoctor = selectedDoctor === 'all'
     ? visits
     : visits.filter((v) => v.doctorId === selectedDoctor)
+
+  const pendingQr = byDoctor.filter((v) => v.bookingSource === 'qr_self' && !v.verified)
+  const filtered = byDoctor.filter((v) => !(v.bookingSource === 'qr_self' && !v.verified))
 
   const handleCheckIn = async (visit) => {
     await updateDocument(`facilities/${facilityId}/opdVisits/${visit.id}`, {
@@ -56,6 +59,21 @@ export default function QueueScreen() {
     })
   }
 
+  // A QR self-booking has no reception-verified identity yet — this is the
+  // one click that both confirms the walk-in matches the token and moves
+  // them into the normal checked-in flow, same as a staff-registered visit.
+  const handleVerifyQr = async (visit) => {
+    await updateDocument(`facilities/${facilityId}/opdVisits/${visit.id}`, {
+      verified: true,
+      status: 'checked_in',
+      checkedInAt: Date.now(),
+    }, {
+      user: staffProfile?.name || user?.email,
+      facilityId,
+      audit: { action: 'qr_booking_verified', module: 'opd' },
+    })
+  }
+
   const handleNoShow = async (visit) => {
     await updateDocument(`facilities/${facilityId}/opdVisits/${visit.id}`, {
       status: 'no_show',
@@ -63,6 +81,23 @@ export default function QueueScreen() {
       user: staffProfile?.name || user?.email,
       facilityId,
       audit: { action: 'patient_no_show', module: 'opd' },
+    })
+  }
+
+  // Advances the lowest-token checked-in patient to in-progress — the button
+  // a doctor's room presses instead of hunting the right card in the list.
+  const handleCallNext = async () => {
+    const next = byDoctor
+      .filter((v) => v.status === 'checked_in')
+      .sort((a, b) => (a.tokenNumber || 0) - (b.tokenNumber || 0))[0]
+    if (!next) return
+    await updateDocument(`facilities/${facilityId}/opdVisits/${next.id}`, {
+      status: 'in_progress',
+      calledAt: Date.now(),
+    }, {
+      user: staffProfile?.name || user?.email,
+      facilityId,
+      audit: { action: 'patient_called', module: 'opd' },
     })
   }
 
@@ -106,7 +141,41 @@ export default function QueueScreen() {
           <option value="all">All Doctors</option>
           {staff.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
         </select>
+        <button
+          className="btn btn-outline btn-sm"
+          onClick={handleCallNext}
+          disabled={!byDoctor.some((v) => v.status === 'checked_in')}
+        >
+          Call Next
+        </button>
       </div>
+
+      {pendingQr.length > 0 && (
+        <div className="queue-list queue-list-pending-qr">
+          <h3 className="queue-section-title"><QrCode size={16} /> Pending QR Check-ins ({pendingQr.length})</h3>
+          {pendingQr.map((visit) => (
+            <div key={visit.id} className="queue-card queue-card-booked">
+              <div className="queue-token">
+                <span className="token-number">{visit.tokenNumber || '—'}</span>
+              </div>
+              <div className="queue-patient-info">
+                <div className="queue-patient-name">{visit.patientName || 'Unknown'}</div>
+                <div className="queue-patient-meta">
+                  {visit.chiefComplaint && <span>{visit.chiefComplaint}</span>}
+                </div>
+                <div className="queue-doctor-name">Dr. {visit.doctorName || 'Unassigned'}{visit.departmentName ? ` — ${visit.departmentName}` : ''}</div>
+              </div>
+              <div className="queue-status">
+                <span className="badge badge-muted"><QrCode size={12} /> awaiting check-in</span>
+              </div>
+              <div className="queue-actions">
+                <button className="btn btn-primary btn-sm" onClick={() => handleVerifyQr(visit)}>Verify &amp; Check In</button>
+                <button className="btn btn-outline btn-sm btn-danger" onClick={() => handleNoShow(visit)}>No Show</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="queue-list">
         {filtered.length === 0 ? (

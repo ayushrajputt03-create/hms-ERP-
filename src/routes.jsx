@@ -27,6 +27,8 @@ const QueueScreen = lazy(() => import('@modules/opd/QueueScreen'))
 const ConsultationScreen = lazy(() => import('@modules/opd/ConsultationScreen'))
 const OPDRegistrationForm = lazy(() => import('@modules/opd/OPDRegistrationForm'))
 
+const QRBookingPage = lazy(() => import('@modules/public/QRBookingPage'))
+
 const PharmacyPage = lazy(() => import('@modules/pharmacy/PharmacyPage'))
 const LabPage = lazy(() => import('@modules/lab/LabPage'))
 const BillingPage = lazy(() => import('@modules/billing/BillingPage'))
@@ -65,6 +67,8 @@ export default function AppRoutes() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
         <Route path="/super-admin/*" element={<SuperAdminApp />} />
+
+        <Route path="/book/:facilityId" element={<QRBookingPage />} />
 
         <Route path="/setup" element={
           <ProtectedRoute>

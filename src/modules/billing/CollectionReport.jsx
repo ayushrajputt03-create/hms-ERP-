@@ -23,7 +23,14 @@ export default function CollectionReport({ invoices }) {
   }, [todaysInvoices])
 
   const totalCollected = Object.values(byMode).reduce((s, v) => s + v, 0)
-  const pendingDues = invoices.filter((inv) => inv.paymentStatus === 'pending')
+  // Oldest-first — the invoices that have been outstanding longest surface at
+  // the top, since those are the ones collections should chase first.
+  const pendingDues = useMemo(
+    () => invoices
+      .filter((inv) => inv.paymentStatus === 'pending' || inv.paymentStatus === 'partially_paid')
+      .sort((a, b) => (a.invoiceDate || 0) - (b.invoiceDate || 0)),
+    [invoices]
+  )
 
   const exportCSV = () => {
     const rows = [
@@ -88,8 +95,8 @@ export default function CollectionReport({ invoices }) {
                   {formatDate(inv.invoiceDate, 'datetime')} — {PAYMENT_MODE_LABELS[inv.paymentMode] || inv.paymentMode}
                 </div>
               </div>
-              <strong>{formatINR(inv.total ?? inv.grandTotal)}</strong>
-              <span className="badge badge-warning">Pending</span>
+              <strong>{formatINR(inv.balanceDue ?? (inv.total ?? inv.grandTotal))}</strong>
+              <span className="badge badge-warning">{inv.paymentStatus === 'partially_paid' ? 'Partially Paid' : 'Pending'}</span>
             </div>
           ))}
         </div>

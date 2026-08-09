@@ -5,8 +5,10 @@ import { formatINR } from './utils'
 // Fallback consultation fee if a visit has no stored fee / no tariff configured.
 export const CONSULT_FALLBACK = 500
 export const DEFAULT_GST_RATE = 18
-export const PAYMENT_MODES = ['cash', 'upi', 'card', 'insurance']
-export const PAYMENT_MODE_LABELS = { cash: 'Cash', upi: 'UPI', card: 'Card', insurance: 'Insurance / TPA' }
+export const PAYMENT_MODES = ['cash', 'upi', 'card', 'insurance', 'bank_transfer']
+export const PAYMENT_MODE_LABELS = {
+  cash: 'Cash', upi: 'UPI', card: 'Card', insurance: 'Insurance / TPA', bank_transfer: 'Bank Transfer',
+}
 
 // ---- Pending-item sources ---------------------------------------------------
 // Each source turns a patient's un-billed activity into candidate line items.
@@ -113,3 +115,33 @@ export async function createInvoice({
 // The invoice-creating roles. Receptionist is intentionally excluded (read-only billing).
 export const BILLING_ROLES = ['billing_staff', 'facility_admin', 'super_admin']
 export const canBill = (role) => BILLING_ROLES.includes(role)
+
+// ---- Payment collection (partial / multi-mode) ------------------------------
+// Appends one payment to the invoice's own document under a row lock, so two
+// front-desk clicks can never double count. Server recomputes paidAmount,
+// balanceDue, and paymentStatus (pending / partially_paid / paid) itself.
+export async function recordPayment({ invoiceId, amount, mode, referenceNumber, paymentDate }) {
+  if (!supabase) throw new Error('Supabase not configured')
+  const { data, error } = await supabase.rpc('record_payment', {
+    p_invoice_id: invoiceId,
+    p_amount: amount,
+    p_mode: mode,
+    p_reference: referenceNumber || null,
+    p_date: paymentDate || null,
+  })
+  if (error) throw error
+  return data
+}
+
+// Credit notes correct a finalized invoice's balance without editing its
+// locked totals directly — only valid once the invoice has taken a payment.
+export async function addCreditNote({ invoiceId, reason, amount }) {
+  if (!supabase) throw new Error('Supabase not configured')
+  const { data, error } = await supabase.rpc('add_credit_note', {
+    p_invoice_id: invoiceId,
+    p_reason: reason,
+    p_amount: amount,
+  })
+  if (error) throw error
+  return data
+}

@@ -10,13 +10,29 @@ import {
 
 export default function DashboardPage() {
   const { staffProfile } = useAuth()
-  const { facilityId, facilityConfig, isModuleEnabled } = useFacility()
+  const { facilityId, isModuleEnabled } = useFacility()
 
   const { data: patients } = useFirestoreCollection(
     facilityId ? `facilities/${facilityId}/patients` : null
   )
 
+  const { data: wards } = useFirestoreCollection(
+    facilityId && isModuleEnabled('ipd') ? `facilities/${facilityId}/ipd/wards` : null
+  )
+
   const role = staffProfile?.role
+
+  // Bed counts come straight from each ward's `beds` map — the same data
+  // BedBoard renders — so this stays live via the same realtime subscription
+  // and never drifts from what reception/nursing actually see on the board.
+  const wardBedStats = wards.map((w) => {
+    const beds = Object.values(w.beds || {})
+    const occupied = beds.filter((b) => b.status === 'occupied').length
+    const cleaning = beds.filter((b) => b.status === 'cleaning').length
+    return { id: w.id, name: w.name, total: beds.length, occupied, cleaning, available: beds.length - occupied - cleaning }
+  })
+  const totalBeds = wardBedStats.reduce((sum, w) => sum + w.total, 0)
+  const occupiedBeds = wardBedStats.reduce((sum, w) => sum + w.occupied, 0)
 
   return (
     <div className="dashboard-page">
@@ -47,8 +63,8 @@ export default function DashboardPage() {
           <StatCard
             icon={BedDouble}
             label="Bed Occupancy"
-            value={`0 / ${facilityConfig?.bedCount || 0}`}
-            sub="beds occupied"
+            value={`${occupiedBeds} / ${totalBeds}`}
+            sub={`${totalBeds - occupiedBeds} available`}
             color="amber"
           />
         )}
@@ -108,6 +124,24 @@ export default function DashboardPage() {
               <Users size={20} />
               <span>Manage Staff</span>
             </a>
+          </div>
+        </div>
+      )}
+
+      {isModuleEnabled('ipd') && wardBedStats.length > 0 && (
+        <div className="dashboard-section">
+          <h3><BedDouble size={18} /> Beds by Ward</h3>
+          <div className="ward-bed-summary">
+            {wardBedStats.map((w) => (
+              <a key={w.id} href="/ipd" className="ward-bed-summary-row">
+                <span className="ward-bed-summary-name">{w.name}</span>
+                <span className="ward-bed-summary-counts">
+                  <span className="badge badge-warning">{w.occupied} occupied</span>
+                  <span className="badge badge-success">{w.available} available</span>
+                  {w.cleaning > 0 && <span className="badge badge-muted">{w.cleaning} cleaning</span>}
+                </span>
+              </a>
+            ))}
           </div>
         </div>
       )}

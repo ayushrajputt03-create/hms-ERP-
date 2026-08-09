@@ -76,6 +76,7 @@ function InvoiceList({ invoices, onOpen }) {
       {invoices.map((inv) => {
         const cancelled = inv.paymentStatus === 'cancelled'
         const paid = inv.paymentStatus === 'paid'
+        const partial = inv.paymentStatus === 'partially_paid'
         return (
           <div key={inv.id} className="queue-card" style={{ cursor: 'pointer' }} onClick={() => onOpen(inv.id)}>
             <div className="queue-patient-info">
@@ -88,7 +89,7 @@ function InvoiceList({ invoices, onOpen }) {
             </div>
             <strong>{formatINR(inv.total ?? inv.grandTotal)}</strong>
             <span className={`badge ${cancelled ? 'badge-danger' : paid ? 'badge-success' : 'badge-warning'}`}>
-              {cancelled ? 'Cancelled' : paid ? 'Paid' : (inv.paymentStatus || 'Pending')}
+              {cancelled ? 'Cancelled' : paid ? 'Paid' : partial ? 'Partially Paid' : (inv.paymentStatus || 'Pending')}
             </span>
           </div>
         )

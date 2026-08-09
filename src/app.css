@@ -1041,6 +1041,23 @@ a:hover { text-decoration: underline; }
 
 .quick-action svg { color: var(--primary); }
 
+.ward-bed-summary { display: flex; flex-direction: column; gap: 0.5rem; }
+.ward-bed-summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  text-decoration: none;
+  transition: all 0.15s;
+}
+.ward-bed-summary-row:hover { border-color: var(--primary); text-decoration: none; box-shadow: var(--shadow-sm); }
+.ward-bed-summary-name { font-weight: 600; }
+.ward-bed-summary-counts { display: flex; gap: 0.5rem; }
+
 .empty-state {
   text-align: center;
   padding: 2rem;
@@ -1673,6 +1690,17 @@ a:hover { text-decoration: underline; }
 }
 
 .queue-list { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.queue-list-pending-qr { margin-bottom: 1.25rem; }
+
+.queue-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0 0 0.5rem;
+}
 
 .queue-card {
   display: flex;
@@ -2336,6 +2364,11 @@ a:hover { text-decoration: underline; }
   color: #1A1D1F;
 }
 
+.invoice-payments-block {
+  margin-top: 1.25rem;
+}
+.invoice-payments-block .invoice-label { margin-bottom: 0.4rem; }
+
 .invoice-foot {
   margin-top: 1.5rem;
   padding-top: 0.75rem;
@@ -2690,3 +2723,39 @@ body {
 }
 
 .registration-summary span { color: var(--text-muted); }
+
+/* Public QR self-booking — reuses .auth-page/.auth-card so it inherits the
+   full-screen, mobile-first shell already tuned for a phone browser. */
+.btn-lg { padding: 0.85rem 1.25rem; font-size: 1rem; }
+
+.field-hint { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.3rem; }
+
+.text-success { color: var(--success, #16a34a); }
+
+.spin { animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.qr-booking-card { max-width: 440px; }
+
+.qr-booking-form .form-group { margin-bottom: 0.9rem; }
+
+.qr-booking-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.4rem;
+  padding: 2rem 1.5rem;
+}
+
+.qr-booking-success .registration-token { width: 100%; margin-top: 0.5rem; }
+
+.qr-booking-doctor { font-weight: 600; margin: 0; }
+
+.qr-booking-wait { color: var(--text-muted); margin: 0; }
+
+.qr-booking-note {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0.5rem 0 1rem;
+}
