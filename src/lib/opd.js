@@ -79,7 +79,10 @@ export async function getVisitByToken({ tokenNumber, tokenDate }) {
     p_token_date: tokenDate || null,
   })
   if (error) throw error
-  return data // { tokenNumber, tokenDate, matches: [...] }
+  // { tokenNumber, tokenDate, issuedUpTo, matches: [...] }
+  // issuedUpTo is the day's counter, which lets the caller say "never issued"
+  // rather than just "not found" when the number is above it.
+  return data
 }
 
 // Reception assigns department and doctor to a self-booked (QR) visit. The

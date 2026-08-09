@@ -1672,6 +1672,16 @@ a:hover { text-decoration: underline; }
 .queue-stat-active .queue-stat-num { color: var(--primary); }
 .queue-stat-success .queue-stat-num { color: var(--success); }
 
+/* ============== Dashboard token find/register ============== */
+.dashboard-token-find { margin-bottom: 1.25rem; }
+.dashboard-token-find .queue-section-title { margin-bottom: 0.5rem; }
+
+/* Full width on the dashboard — the OPD screen caps it at 820px, but here it
+   sits above the stat grid and a narrow box looks like an afterthought. */
+.token-lookup-compact { max-width: 100%; }
+
+.token-lookup-miss { display: flex; flex-direction: column; align-items: center; gap: 0.75rem; }
+
 /* ==================== OPD footfall ==================== */
 .opd-footfall {
   display: flex;

@@ -12,8 +12,9 @@ import { ROLES } from '@lib/constants'
 import {
   Users, Stethoscope, BedDouble, Receipt, Activity,
   UserCheck, FlaskConical, Pill, TrendingUp, AlertTriangle,
-  UserPlus, CalendarDays, CalendarRange,
+  UserPlus, CalendarDays, CalendarRange, Hash,
 } from 'lucide-react'
+import TokenLookup from '@modules/opd/TokenLookup'
 
 export default function DashboardPage() {
   const { staffProfile } = useAuth()
@@ -67,6 +68,17 @@ export default function DashboardPage() {
         <h2>Dashboard</h2>
         <p>Welcome back, {staffProfile?.name || 'User'}</p>
       </div>
+
+      {/* The same TokenLookup the OPD registration screen mounts — imported,
+          not reimplemented. A patient arriving with a slip is the front desk's
+          most frequent job, and it used to be three clicks deep behind a
+          button labelled "New Registration". */}
+      {isModuleEnabled('opd') && (
+        <section className="dashboard-token-find">
+          <h3 className="queue-section-title"><Hash size={16} /> Find / Register by Token</h3>
+          <TokenLookup compact />
+        </section>
+      )}
 
       {/* Registrations, not footfall. A returning patient adds to Today's OPD
           below but to none of these — the register only grows when someone new
