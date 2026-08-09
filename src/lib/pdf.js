@@ -514,54 +514,290 @@ export async function buildOpdSlipPDF({ facility, patient, visit }) {
   return pdf
 }
 
-// IPD admission slip — carries the ward/bed alongside the department location so
-// visitors and ward staff can find the patient from one piece of paper.
+// IPD admission slip, in the same house style as the OPD parchi: the ward and
+// bed are the thing visitors and ward staff read off it, so they print large
+// in their own band rather than buried in a field list. Carries the standard
+// admission undertaking and both signature blocks a real admission needs.
 export function buildIpdAdmissionSlipPDF({ facility, patient, admission }) {
   const pdf = createPDF()
   const pageWidth = pdf.internal.pageSize.getWidth()
-  const margin = 15
-  let y = addHeader(pdf, facility)
+  const pageHeight = pdf.internal.pageSize.getHeight()
+  const margin = 12
+  const contentWidth = pageWidth - margin * 2
+  const NAVY = [26, 54, 93]
 
-  pdf.setFontSize(11)
+  const uhid = patient?.uhid || admission?.patientUhid || ''
+  const ipdNo = admission?.ipdNumber || admission?.id || ''
+
+  // ---- HEADER -------------------------------------------------------------
+  let y = 12
+  const stampW = 36
+  const barcodeW = 42
+  const barcodeX = pageWidth - margin - barcodeW
+
+  pdf.setDrawColor(160, 174, 192)
+  pdf.setLineWidth(0.2)
+  pdf.setLineDashPattern([0.8, 0.8], 0)
+  pdf.rect(margin, y, stampW, 17)
+  pdf.setLineDashPattern([], 0)
+  pdf.setFontSize(7)
   pdf.setFont('helvetica', 'bold')
-  pdf.text('ADMISSION SLIP', pageWidth / 2, y, { align: 'center' })
-  y += 9
-
-  y = addRoutingBlock(pdf, admission, { y })
-
-  pdf.setFontSize(9)
+  pdf.setTextColor(45, 55, 72)
+  pdf.text('HMS RECORD', margin + stampW / 2, y + 4.5, { align: 'center' })
+  pdf.setLineWidth(0.15)
+  pdf.line(margin + 2, y + 5.8, margin + stampW - 2, y + 5.8)
   pdf.setFont('helvetica', 'normal')
-  const rows = [
-    ['Patient', patient?.name || admission?.patientName || '—'],
-    ['UHID', patient?.uhid || admission?.patientUhid || '—'],
-    ['Admission No.', admission?.id || '—'],
+  pdf.setFontSize(6.5)
+  pdf.text('IPD ADMISSION SLIP', margin + stampW / 2, y + 9.5, { align: 'center' })
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(8)
+  pdf.setTextColor(...NAVY)
+  pdf.text(pdf.splitTextToSize(`IPD NO : ${ipdNo || '--'}`, stampW - 3),
+    margin + stampW / 2, y + 14, { align: 'center' })
+  pdf.setTextColor(0, 0, 0)
+
+  const centerLeft = margin + stampW + 4
+  const centerWidth = barcodeX - centerLeft - 4
+  const centerX = centerLeft + centerWidth / 2
+
+  pdf.setFontSize(13)
+  pdf.setFont('helvetica', 'bold')
+  const nameLines = pdf.splitTextToSize(
+    String(facility?.facilityName || 'Hospital').toUpperCase(), centerWidth
+  )
+  pdf.text(nameLines, centerX, y + 4.5, { align: 'center' })
+  let cy = y + 4.5 + nameLines.length * 5
+
+  pdf.setFontSize(8)
+  pdf.setFont('helvetica', 'normal')
+  pdf.setTextColor(45, 55, 72)
+  const addressLine = [facility?.address, facility?.city, facility?.state, facility?.pincode]
+    .filter(Boolean).join(', ')
+  if (addressLine) {
+    const addrLines = pdf.splitTextToSize(addressLine, centerWidth)
+    pdf.text(addrLines, centerX, cy, { align: 'center' })
+    cy += addrLines.length * 3.8
+  }
+  const contact = [facility?.phone && `Ph: ${facility.phone}`, facility?.email]
+    .filter(Boolean).join('  |  ')
+  if (contact) { pdf.text(contact, centerX, cy, { align: 'center' }); cy += 3.8 }
+  pdf.setTextColor(0, 0, 0)
+
+  const barcodeDrawn = drawBarcode(pdf, uhid, { x: barcodeX, y: y + 1, width: barcodeW, height: 11 })
+  pdf.setFontSize(7.5)
+  pdf.setFont('courier', 'bold')
+  pdf.text(`UHID: ${uhid || '--'}`, pageWidth - margin,
+    y + (barcodeDrawn ? 15.5 : 8), { align: 'right' })
+  pdf.setFont('helvetica', 'normal')
+
+  y = Math.max(y + 18, cy + 1)
+  pdf.setDrawColor(0, 0, 0)
+  pdf.setLineWidth(0.5)
+  pdf.line(margin, y, pageWidth - margin, y)
+
+  // ---- BANNER -------------------------------------------------------------
+  pdf.setFillColor(237, 242, 247)
+  pdf.rect(margin, y, contentWidth, 6, 'F')
+  pdf.setLineWidth(0.4)
+  pdf.rect(margin, y, contentWidth, 6)
+  pdf.setFontSize(9.5)
+  pdf.setFont('helvetica', 'bold')
+  pdf.text('IN  PATIENT  ADMISSION  RECORD', pageWidth / 2, y + 4.2, { align: 'center' })
+  pdf.setFont('helvetica', 'normal')
+  y += 6
+
+  // ---- WARD / BED BAND ----------------------------------------------------
+  // The one line a visitor at the gate actually needs.
+  const bandH = 13
+  pdf.setFillColor(240, 245, 252)
+  pdf.rect(margin, y, contentWidth, bandH, 'F')
+  pdf.setDrawColor(0, 0, 0)
+  pdf.setLineWidth(0.4)
+  pdf.rect(margin, y, contentWidth, bandH)
+
+  const cellW = contentWidth / 4
+  const bandCells = [
+    ['WARD', admission?.wardName],
+    ['BED', admission?.bedName],
+    ['FLOOR', admission?.floor],
+    ['ROOM', admission?.roomNumber],
+  ]
+  bandCells.forEach(([label, value], i) => {
+    const cx = margin + cellW * i
+    if (i > 0) {
+      pdf.setDrawColor(203, 213, 224)
+      pdf.setLineWidth(0.2)
+      pdf.line(cx, y + 1.5, cx, y + bandH - 1.5)
+    }
+    pdf.setFontSize(6.5)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setTextColor(74, 85, 104)
+    pdf.text(label, cx + cellW / 2, y + 4.5, { align: 'center' })
+    pdf.setFontSize(12)
+    pdf.setTextColor(...NAVY)
+    pdf.text(String(value || '--'), cx + cellW / 2, y + 10.5, { align: 'center' })
+  })
+  pdf.setTextColor(0, 0, 0)
+  pdf.setFont('helvetica', 'normal')
+  y += bandH
+
+  // ---- DEMOGRAPHICS / ADMISSION BOX --------------------------------------
+  const infoTop = y
+  const padX = 3
+  const leftX = margin + padX
+  const dividerX = margin + contentWidth / 2
+  const rightX = dividerX + padX
+  const colW = contentWidth / 2 - padX * 2
+
+  const infoRow = (label, value, { x, ry, labelW, width, danger }) => {
+    pdf.setFontSize(7.5)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setTextColor(45, 55, 72)
+    pdf.text(label, x, ry)
+    pdf.setTextColor(...(danger ? [197, 48, 48] : [0, 0, 0]))
+    const lines = pdf.splitTextToSize(`: ${value ?? '---'}`, width - labelW)
+    pdf.text(lines, x + labelW, ry)
+    pdf.setTextColor(0, 0, 0)
+    return ry + Math.max(lines.length, 1) * 3.5 + 0.7
+  }
+
+  const isMlc = patient?.patientType === 'mlc'
+  const ageSex = [
+    formatAge(patient?.dob),
+    patient?.gender && patient.gender[0].toUpperCase() + patient.gender.slice(1),
+  ].filter(Boolean).join(' / ')
+
+  let ly = infoTop + 5
+  for (const [label, value] of [
+    ['Patient Name', patient?.name || admission?.patientName],
+    ['UHID', uhid],
+    ['Age / Sex', ageSex],
+    ['Mobile No', maskPhone(patient?.phone)],
+    [patient?.relationType || 'S/O', patient?.guardianName],
+    ['Address', [patient?.address, patient?.city, patient?.state, patient?.pincode]
+      .filter(Boolean).join(', ')],
+    ['Blood Group', patient?.bloodGroup],
+  ]) {
+    ly = infoRow(label, value, { x: leftX, ry: ly, labelW: 26, width: colW })
+  }
+  ly = infoRow('Patient Type', isMlc ? 'MLC' : 'NON MLC',
+    { x: leftX, ry: ly, labelW: 26, width: colW, danger: isMlc })
+
+  let ry = infoTop + 5
+  for (const [label, value] of [
+    ['Admission No.', ipdNo],
     ['Admitted On', admission?.admissionDate
       ? new Date(admission.admissionDate).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
-      : '—'],
-    ['Department', admission?.departmentName || '—'],
-    ['Attending Doctor', admission?.doctorName ? `Dr. ${admission.doctorName}` : '—'],
-    ['Floor', admission?.floor || '—'],
-    ['Room No.', admission?.roomNumber || '—'],
-    ['Ward', admission?.wardName || '—'],
-    ['Bed', admission?.bedName || '—'],
-    ['Bed Charge / Day', admission?.ratePerDay != null ? `Rs. ${admission.ratePerDay}` : '—'],
-    ['Admission Diagnosis', admission?.diagnosis || '—'],
-  ]
-  rows.forEach(([label, value]) => {
+      : null],
+    ['Department', admission?.departmentName],
+    ['Consultant', admission?.doctorName ? `Dr. ${admission.doctorName}` : null],
+    ['Bed Charge / Day', admission?.ratePerDay != null ? `Rs. ${admission.ratePerDay}` : null],
+    ['Billing Type', BILLING_TYPE_LABELS[admission?.billingType] || admission?.billingType],
+    ['Admitted By', admission?.admittedByName || admission?.preparedByName],
+    ['Provisional Diagnosis', admission?.diagnosis],
+  ]) {
+    ry = infoRow(label, value, { x: rightX, ry, labelW: 30, width: colW })
+  }
+
+  const infoBottom = Math.max(ly, ry) + 2
+  pdf.setDrawColor(0, 0, 0)
+  pdf.setLineWidth(0.4)
+  pdf.line(margin, infoTop, margin, infoBottom)
+  pdf.line(pageWidth - margin, infoTop, pageWidth - margin, infoBottom)
+  pdf.line(margin, infoBottom, pageWidth - margin, infoBottom)
+  pdf.setDrawColor(203, 213, 224)
+  pdf.setLineWidth(0.2)
+  pdf.setLineDashPattern([0.8, 0.8], 0)
+  pdf.line(dividerX, infoTop + 2, dividerX, infoBottom - 2)
+  pdf.setLineDashPattern([], 0)
+
+  y = infoBottom + 5
+
+  if (patient?.allergies?.length) {
+    pdf.setFillColor(255, 245, 245)
+    pdf.setDrawColor(197, 48, 48)
+    pdf.setLineWidth(0.3)
+    pdf.rect(margin, y, contentWidth, 7, 'FD')
+    pdf.setFontSize(8)
     pdf.setFont('helvetica', 'bold')
-    pdf.text(`${label}:`, margin, y)
+    pdf.setTextColor(197, 48, 48)
+    pdf.text(`ALLERGIES: ${patient.allergies.join(', ')}`, margin + 3, y + 4.6)
+    pdf.setTextColor(0, 0, 0)
     pdf.setFont('helvetica', 'normal')
-    pdf.text(pdf.splitTextToSize(String(value), pageWidth - margin * 2 - 45), margin + 45, y)
-    y += 6
+    y += 11
+  }
+
+  // ---- ATTENDANT / NEXT OF KIN (filled in by hand at the counter) ---------
+  pdf.setDrawColor(0, 0, 0)
+  pdf.setLineWidth(0.4)
+  const kinH = 20
+  pdf.rect(margin, y, contentWidth, kinH)
+  pdf.setFontSize(8)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setTextColor(...NAVY)
+  pdf.text('ATTENDANT / NEXT OF KIN', margin + 3, y + 5)
+  pdf.setTextColor(0, 0, 0)
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(7.5)
+  pdf.setDrawColor(160, 174, 192)
+  pdf.setLineWidth(0.2)
+  const kinFields = [['Name', 0], ['Relation', 1], ['Mobile No', 2]]
+  kinFields.forEach(([label, i]) => {
+    const fx = margin + 3 + (contentWidth / 3) * i
+    pdf.text(`${label}:`, fx, y + 12)
+    pdf.line(fx + 18, y + 12.5, fx + contentWidth / 3 - 8, y + 12.5)
   })
+  pdf.text('ID Proof:', margin + 3, y + 17.5)
+  pdf.line(margin + 21, y + 18, pageWidth - margin - 3, y + 18)
+  y += kinH + 5
 
-  const signY = Math.max(y + 20, pdf.internal.pageSize.getHeight() - 40)
-  pdf.line(margin, signY, margin + 55, signY)
-  pdf.text('Attendant Signature', margin, signY + 5)
-  pdf.line(pageWidth - margin - 55, signY, pageWidth - margin, signY)
-  pdf.text('Admitting Officer', pageWidth - margin, signY + 5, { align: 'right' })
+  // ---- UNDERTAKING --------------------------------------------------------
+  pdf.setFontSize(7)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setTextColor(45, 55, 72)
+  pdf.text('DECLARATION', margin, y)
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(6.8)
+  pdf.setTextColor(74, 85, 104)
+  const undertaking = 'I hereby give consent for the admission and necessary treatment of the above patient. '
+    + 'I have been informed of the applicable bed and treatment charges and undertake to settle all hospital '
+    + 'dues before discharge. I understand that valuables brought into the hospital are the sole responsibility '
+    + 'of the patient and attendant.'
+  pdf.text(pdf.splitTextToSize(undertaking, contentWidth), margin, y + 4)
+  pdf.setTextColor(0, 0, 0)
+  y += 20
 
-  addFooter(pdf)
+  // ---- SIGNATURES ---------------------------------------------------------
+  const signY = Math.min(Math.max(y + 12, pageHeight - 42), pageHeight - 34)
+  pdf.setDrawColor(0, 0, 0)
+  pdf.setLineWidth(0.3)
+  const signW = 55
+  pdf.line(margin, signY, margin + signW, signY)
+  pdf.line(pageWidth - margin - signW, signY, pageWidth - margin, signY)
+  pdf.setFontSize(7.5)
+  pdf.setFont('helvetica', 'bold')
+  pdf.text('Attendant / Patient Signature', margin, signY + 4)
+  pdf.text('Admitting Officer', pageWidth - margin, signY + 4, { align: 'right' })
+  pdf.setFont('helvetica', 'normal')
+
+  // ---- FOOTER -------------------------------------------------------------
+  const footerTop = pageHeight - 20
+  pdf.setLineWidth(0.4)
+  pdf.line(margin, footerTop, pageWidth - margin, footerTop)
+  pdf.setFontSize(7.5)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setTextColor(197, 48, 48)
+  pdf.text('Please retain this slip. It is required at the time of discharge and billing.',
+    pageWidth / 2, footerTop + 4.5, { align: 'center' })
+  pdf.setTextColor(113, 128, 150)
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(6.5)
+  pdf.text('IPD Admission Record', margin, footerTop + 9.5)
+  pdf.text(new Date().toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }),
+    pageWidth / 2, footerTop + 9.5, { align: 'center' })
+  pdf.text('Page 1 of 1', pageWidth - margin, footerTop + 9.5, { align: 'right' })
+  pdf.setTextColor(0, 0, 0)
+
   return pdf
 }
 
