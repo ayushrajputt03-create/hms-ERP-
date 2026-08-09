@@ -7,30 +7,25 @@ import { ROLES } from '@lib/constants'
 import StatCard from '@components/StatCard'
 import {
   BarChart3, Stethoscope, BedDouble, IndianRupee, Pill, Download,
-  BookOpen, AlertTriangle, CheckCircle,
 } from 'lucide-react'
-import {
-  getTrialBalance, getLedgerLines, trialBalanceTotals, groupByAccountType,
-  getUnbalancedVouchers,
-} from '@lib/accounting'
 
+// The ledger, trial balance and day book used to live here as an "Accounts"
+// tab. They now have their own module (@modules/accounts) alongside expenses
+// and payroll — kept in one place rather than two so the two views cannot
+// drift apart.
 const ALL_TABS = [
   { key: 'opd', label: 'OPD', icon: Stethoscope },
   { key: 'ipd', label: 'IPD', icon: BedDouble },
   { key: 'revenue', label: 'Revenue', icon: IndianRupee },
   { key: 'pharmacy', label: 'Pharmacy', icon: Pill },
-  { key: 'accounts', label: 'Accounts', icon: BookOpen },
 ]
 
 // Reports visibility is scoped by role (Phase 7):
-//  - billing_staff: money only — collection, dues and the ledger. No clinical
-//    stats (OPD/IPD/pharmacy); the books are squarely their job.
+//  - billing_staff: collection & dues only — no clinical stats (OPD/IPD/pharmacy)
 //  - doctor: only their own numbers (handled by a dedicated view below)
 //  - facility_admin/super_admin: everything (IPD tab still gated by module)
 function tabsForRole(role, ipdEnabled) {
-  if (role === ROLES.BILLING_STAFF) {
-    return ALL_TABS.filter((t) => t.key === 'revenue' || t.key === 'accounts')
-  }
+  if (role === ROLES.BILLING_STAFF) return ALL_TABS.filter((t) => t.key === 'revenue')
   return ALL_TABS.filter((t) => t.key !== 'ipd' || ipdEnabled)
 }
 
@@ -141,7 +136,6 @@ export default function ReportsPage() {
       {tab === 'ipd' && isModuleEnabled('ipd') && <IPDReport admissions={admissions} wards={wards} inRange={inRange} />}
       {tab === 'revenue' && <RevenueReport billing={billing.filter((b) => inRange(b.invoiceDate || b.createdAt || 0))} />}
       {tab === 'pharmacy' && <PharmacyReport sales={sales.filter((s) => inRange(s.saleDate || 0))} />}
-      {tab === 'accounts' && <AccountsReport range={range} />}
     </div>
   )
 }
@@ -253,106 +247,6 @@ function RevenueReport({ billing }) {
           i.grandTotal || 0, i.paidAmount || 0, (i.grandTotal || 0) - (i.paidAmount || 0),
         ])}
         filename="invoices-report.csv"
-      />
-    </div>
-  )
-}
-
-// Trial balance + journal, straight off the security_invoker views. Reads run
-// on the server rather than over a subscribed collection: the ledger only ever
-// grows, and it is the one dataset in this app guaranteed to outgrow the
-// browser on a real tenant.
-//
-// The tie-out banner is the point of the whole tab. A trial balance that does
-// not balance is not a display problem — it means a voucher got into the
-// ledger that should have been impossible — so it is stated at the top rather
-// than left for someone to add up by eye.
-function AccountsReport({ range }) {
-  const [balance, setBalance] = useState([])
-  const [journal, setJournal] = useState([])
-  const [unbalanced, setUnbalanced] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    let live = true
-    setLoading(true)
-    Promise.all([
-      getTrialBalance(),
-      getLedgerLines({ from: range.fromTs, to: range.toTs }),
-      getUnbalancedVouchers(),
-    ])
-      .then(([tb, jl, ub]) => {
-        if (!live) return
-        setBalance(tb); setJournal(jl); setUnbalanced(ub); setError('')
-      })
-      .catch((err) => {
-        if (!live) return
-        console.error('Accounts report error:', err)
-        setError('Could not load the ledger. Please try again.')
-      })
-      .finally(() => { if (live) setLoading(false) })
-    return () => { live = false }
-  }, [range.fromTs, range.toTs])
-
-  const totals = useMemo(() => trialBalanceTotals(balance), [balance])
-  const groups = useMemo(() => groupByAccountType(balance), [balance])
-
-  if (loading) return <div className="empty-state">Loading ledger…</div>
-  if (error) return <div className="auth-error">{error}</div>
-  if (balance.length === 0) {
-    return (
-      <div className="empty-state">
-        <p>No journal entries yet. Vouchers are posted automatically when an
-          invoice is settled, and when advance deposits or TPA claims are recorded.</p>
-      </div>
-    )
-  }
-
-  const tied = totals.balanced && unbalanced.length === 0
-
-  return (
-    <div>
-      <div className={`ledger-tieout ${tied ? 'ok' : 'bad'}`}>
-        {tied ? <CheckCircle size={16} /> : <AlertTriangle size={16} />}
-        <span>
-          {tied
-            ? `Books tie out — total debits ${formatINR(totals.totalDebit)} = total credits ${formatINR(totals.totalCredit)}.`
-            : `Trial balance is OUT by ${formatINR(Math.abs(totals.difference))}`
-              + (unbalanced.length ? ` across ${unbalanced.length} voucher(s): `
-                  + unbalanced.map((u) => u.voucher_number).join(', ') : '')
-              + '. Do not close the books — raise this with your administrator.'}
-        </span>
-      </div>
-
-      <div className="stats-grid">
-        <StatCard icon={IndianRupee} label="Total Debits" value={formatINR(totals.totalDebit)} color="teal" />
-        <StatCard icon={IndianRupee} label="Total Credits" value={formatINR(totals.totalCredit)} color="blue" />
-        <StatCard icon={BookOpen} label="Journal Lines" value={journal.length} sub="in selected period" color="purple" />
-      </div>
-
-      {groups.map((g) => (
-        <ReportTable
-          key={g.type}
-          title={`Trial Balance — ${g.type.charAt(0) + g.type.slice(1).toLowerCase()}`}
-          headers={['Code', 'Account', 'Debit', 'Credit', 'Balance']}
-          rows={g.rows.map((r) => [
-            r.account_code, r.account_name,
-            formatINR(r.total_debit), formatINR(r.total_credit), formatINR(r.balance),
-          ])}
-          filename={`trial-balance-${g.type.toLowerCase()}.csv`}
-        />
-      ))}
-
-      <ReportTable
-        title="Journal (Day Book)"
-        headers={['Voucher', 'Date', 'Source', 'Account', 'Debit', 'Credit', 'Narration']}
-        rows={journal.map((l) => [
-          l.voucher_number, formatDate(l.voucher_date, 'date'), l.source_type,
-          l.account_code, l.debit ? formatINR(l.debit) : '—',
-          l.credit ? formatINR(l.credit) : '—', l.narration,
-        ])}
-        filename="journal.csv"
       />
     </div>
   )

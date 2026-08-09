@@ -34,6 +34,7 @@ const LabPage = lazy(() => import('@modules/lab/LabPage'))
 const BillingPage = lazy(() => import('@modules/billing/BillingPage'))
 const InvoiceView = lazy(() => import('@modules/billing/InvoiceView'))
 const ReportsPage = lazy(() => import('@modules/reports/ReportsPage'))
+const AccountsPage = lazy(() => import('@modules/accounts/AccountsPage'))
 
 const IPDPage = lazy(() => import('@modules/ipd/IPDPage'))
 const AdmissionForm = lazy(() => import('@modules/ipd/AdmissionForm'))
@@ -156,6 +157,11 @@ export default function AppRoutes() {
           {/* Reports module */}
           <Route path="reports" element={
             <ModuleGate module="reports"><ReportsPage /></ModuleGate>
+          } />
+
+          {/* Accounts & Payroll module */}
+          <Route path="accounts" element={
+            <ModuleGate module="accounts"><AccountsPage /></ModuleGate>
           } />
 
           <Route path="*" element={<Navigate to="/" replace />} />

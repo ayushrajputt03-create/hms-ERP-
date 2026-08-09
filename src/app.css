@@ -2950,3 +2950,102 @@ button.patient-search-row.deposit-pick {
 button.patient-search-row.deposit-pick:hover {
   background: color-mix(in srgb, var(--text-muted, #64748b) 8%, transparent);
 }
+
+/* ---- Accounts & Payroll module ------------------------------------------- */
+
+.section-head-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.expense-head-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 0.75rem;
+}
+
+/* Each head is a filter toggle, so it has to look pressable rather than like
+   a static stat tile. */
+.expense-head-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: border-color 0.15s, transform 0.15s;
+}
+.expense-head-card:hover { transform: translateY(-1px); }
+.expense-head-card.active { border-color: var(--primary, #0d9488); }
+.expense-head-name { font-size: 0.82rem; color: var(--text-muted); }
+.expense-head-card strong { font-size: 1.05rem; }
+
+.expense-head-bar {
+  display: block;
+  height: 5px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--text-muted, #64748b) 18%, transparent);
+  overflow: hidden;
+}
+.expense-head-bar i {
+  display: block;
+  height: 100%;
+  background: var(--primary, #0d9488);
+  border-radius: 3px;
+}
+
+.payroll-group-title {
+  margin: 1rem 0 0.5rem;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.payroll-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0 0.75rem;
+}
+
+/* DA/HRA/PF/ESI are entered as percentages of basic, so the rupee value is
+   invisible until it is computed. Showing it live is what stops "I typed 12
+   and it paid twelve rupees". */
+.payslip-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.6rem;
+  padding: 0.85rem;
+  margin: 1rem 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--text-muted, #64748b) 6%, transparent);
+}
+.payslip-summary > div { display: flex; flex-direction: column; gap: 0.15rem; }
+.payslip-summary span { font-size: 0.75rem; color: var(--text-muted); }
+.payslip-summary strong { font-size: 0.98rem; }
+.payslip-net strong { color: var(--success, #16a34a); font-size: 1.15rem; }
+
+.btn-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--primary, #0d9488);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+@media (max-width: 720px) {
+  .payroll-grid { grid-template-columns: 1fr 1fr; }
+  .expense-head-grid { grid-template-columns: 1fr; }
+}

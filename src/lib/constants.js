@@ -31,6 +31,7 @@ export const MODULES = {
   STAFF: 'staff',
   ADMIN: 'admin',
   REPORTS: 'reports',
+  ACCOUNTS: 'accounts',
 }
 
 export const MODULE_LABELS = {
@@ -44,6 +45,7 @@ export const MODULE_LABELS = {
   staff: 'Staff Management',
   admin: 'Administration',
   reports: 'Reports & Analytics',
+  accounts: 'Accounts & Payroll',
 }
 
 export const FACILITY_TYPES = {

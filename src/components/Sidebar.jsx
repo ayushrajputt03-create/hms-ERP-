@@ -9,7 +9,7 @@ import { MODULE_LABELS } from '@lib/constants'
 import {
   LayoutDashboard, Users, Stethoscope, BedDouble, Pill,
   FlaskConical, Receipt, UserCog, Settings, BarChart3,
-  ChevronLeft, ChevronRight, Activity,
+  ChevronLeft, ChevronRight, Activity, BookOpen,
 } from 'lucide-react'
 
 const MODULE_ICONS = {
@@ -23,6 +23,7 @@ const MODULE_ICONS = {
   staff: UserCog,
   admin: Settings,
   reports: BarChart3,
+  accounts: BookOpen,
 }
 
 const MODULE_ROUTES = {
@@ -36,6 +37,7 @@ const MODULE_ROUTES = {
   staff: '/staff',
   admin: '/admin',
   reports: '/reports',
+  accounts: '/accounts',
 }
 
 export default function Sidebar({ collapsed, onToggle }) {

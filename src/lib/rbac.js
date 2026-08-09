@@ -26,6 +26,7 @@ const PERMISSION_MATRIX = {
     [MODULES.STAFF]: ALL_ACTIONS,
     [MODULES.ADMIN]: ALL_ACTIONS,
     [MODULES.REPORTS]: ALL_ACTIONS,
+    [MODULES.ACCOUNTS]: ALL_ACTIONS,
   },
   [ROLES.FACILITY_ADMIN]: {
     [MODULES.DASHBOARD]: ALL_ACTIONS,
@@ -38,6 +39,7 @@ const PERMISSION_MATRIX = {
     [MODULES.STAFF]: ALL_ACTIONS,
     [MODULES.ADMIN]: ALL_ACTIONS,
     [MODULES.REPORTS]: ALL_ACTIONS,
+    [MODULES.ACCOUNTS]: ALL_ACTIONS,
   },
   [ROLES.DOCTOR]: {
     [MODULES.DASHBOARD]: VIEW_ONLY,
@@ -92,6 +94,10 @@ const PERMISSION_MATRIX = {
     [MODULES.LAB]: VIEW_ONLY,
     [MODULES.BILLING]: CRUD,
     [MODULES.REPORTS]: VIEW_EXPORT,
+    // Books and expenses are this role's job. Payroll is not: it exposes
+    // every colleague's salary, so pay_salary is admin-only server-side and
+    // the Payroll tab is hidden for them.
+    [MODULES.ACCOUNTS]: [ACTIONS.VIEW, ACTIONS.CREATE, ACTIONS.EXPORT],
   },
 }
 

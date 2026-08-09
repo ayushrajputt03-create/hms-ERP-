@@ -141,3 +141,118 @@ export function groupByAccountType(rows = []) {
       .reduce((s, r) => s + Number(r.balance || 0), 0),
   })).filter((g) => g.rows.length > 0)
 }
+
+// ---- Expenses ---------------------------------------------------------------
+
+// Expense heads, in the order they matter to a hospital's month. These mirror
+// the EXPENSE rows in chart_of_accounts; the server re-checks the code and
+// refuses anything that is not an expense account, so a stale entry here can
+// never post to revenue by mistake.
+export const EXPENSE_ACCOUNTS = [
+  { code: '4310', label: 'Salaries & Wages',               icon: '💼' },
+  { code: '4320', label: 'Electricity & Utilities',        icon: '⚡' },
+  { code: '4330', label: 'Rent & Lease',                   icon: '🏢' },
+  { code: '4340', label: 'Medical Consumables & Supplies', icon: '🩺' },
+  { code: '4350', label: 'Equipment & Maintenance',        icon: '🔧' },
+  { code: '4360', label: 'Housekeeping & Security',        icon: '🧹' },
+  { code: '4370', label: 'Marketing & Outreach',           icon: '📢' },
+  { code: '4380', label: 'Professional & Legal Fees',      icon: '⚖️' },
+  { code: '4390', label: 'Miscellaneous Expense',          icon: '📦' },
+]
+
+export const EXPENSE_MODES = ['cash', 'upi', 'card', 'bank_transfer', 'cheque']
+export const EXPENSE_MODE_LABELS = {
+  cash: 'Cash', upi: 'UPI', card: 'Card',
+  bank_transfer: 'Bank Transfer', cheque: 'Cheque',
+}
+
+export const expenseAccount = (code) =>
+  EXPENSE_ACCOUNTS.find((a) => a.code === code) || { code, label: code, icon: '📦' }
+
+export async function recordExpense({
+  accountCode, amount, title, vendor, mode = 'cash', reference, expenseDate, note,
+}) {
+  const { data, error } = await requireClient().rpc('record_expense', {
+    p_account_code: accountCode,
+    p_amount: amount,
+    p_title: title,
+    p_vendor: vendor || null,
+    p_mode: mode,
+    p_reference: reference || null,
+    p_expense_date: expenseDate || null,
+    p_note: note || null,
+  })
+  if (error) throw error
+  return data
+}
+
+// ---- Payroll ----------------------------------------------------------------
+
+// Payslip arithmetic, kept here so the form, the payslip PDF and the register
+// all read the same numbers. Percentages are of basic, which is how Indian
+// payroll is written; flat components are taken as entered.
+export function computePayslip(input = {}) {
+  const n = (v) => Number(v) || 0
+  const basic = n(input.basic)
+  const da = Math.round(basic * n(input.daPercent) / 100)
+  const hra = Math.round(basic * n(input.hraPercent) / 100)
+  const ta = n(input.ta)
+  const medical = n(input.medical)
+  const otherEarnings = n(input.otherEarnings)
+
+  const pf = Math.round(basic * n(input.pfPercent) / 100)
+  const esi = Math.round(basic * n(input.esiPercent) / 100)
+  const tds = n(input.tds)
+  const professionalTax = n(input.professionalTax)
+  const otherDeductions = n(input.otherDeductions)
+
+  const earnings = { basic, da, hra, ta, medical, other: otherEarnings }
+  const deductions = { pf, esi, tds, professionalTax, other: otherDeductions }
+  const grossEarnings = basic + da + hra + ta + medical + otherEarnings
+  const totalDeductions = pf + esi + tds + professionalTax + otherDeductions
+
+  return {
+    earnings, deductions, grossEarnings, totalDeductions,
+    netSalary: Math.max(0, grossEarnings - totalDeductions),
+    // Surfaced so the form can block before the server has to.
+    overDeducted: totalDeductions > grossEarnings,
+  }
+}
+
+export async function paySalary({ staffId, month, earnings, deductions, mode, reference }) {
+  const { data, error } = await requireClient().rpc('pay_salary', {
+    p_staff_id: staffId,
+    p_month: month,
+    p_earnings: earnings,
+    p_deductions: deductions || {},
+    p_mode: mode || 'bank_transfer',
+    p_reference: reference || null,
+  })
+  if (error) throw error
+  return data
+}
+
+export async function getCashPosition() {
+  const { data, error } = await requireClient()
+    .from('v_cash_position').select('*').maybeSingle()
+  if (error) throw error
+  return data || { cash_in: 0, cash_out: 0, cash_balance: 0 }
+}
+
+// Only facility_admin/super_admin may run payroll — it exposes every
+// colleague's salary. Mirrors the server-side check in pay_salary.
+export const PAYROLL_ROLES = ['facility_admin', 'super_admin']
+export const canRunPayroll = (role) => PAYROLL_ROLES.includes(role)
+
+export const currentMonth = () => {
+  const d = new Date()
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+  return d.toISOString().slice(0, 7)
+}
+
+export const monthLabel = (m) => {
+  if (!m) return ''
+  const d = new Date(`${m}-01T00:00:00`)
+  return Number.isNaN(d.getTime()) ? m
+    : d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+}
