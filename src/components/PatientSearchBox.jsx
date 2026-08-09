@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useFacility } from '@hooks/useFacility'
 import { searchPatients, formatAgeSex } from '@lib/patients'
 import { formatDate } from '@lib/utils'
 import { Search, Loader, UserPlus, FileText } from 'lucide-react'
@@ -12,6 +13,11 @@ import { Search, Loader, UserPlus, FileText } from 'lucide-react'
 // slow early response can never overwrite a newer one.
 export default function PatientSearchBox() {
   const navigate = useNavigate()
+  // "New Visit" opens an OPD visit, which only exists when the OPD module is
+  // on. Routes behind a disabled ModuleGate fall through to the catch-all and
+  // bounce back to the dashboard, so offering the button would be a dead end.
+  const { isModuleEnabled } = useFacility()
+  const opdOn = isModuleEnabled('opd')
   const [query, setQuery] = useState('')
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
@@ -70,7 +76,7 @@ export default function PatientSearchBox() {
       {searched && !loading && results.length === 0 && !error && (
         <div className="empty-state">
           <p>No patient matches “{query.trim()}”.</p>
-          <button className="btn btn-outline" onClick={() => navigate('/opd/register')}>
+          <button className="btn btn-outline" onClick={() => navigate('/patients/new')}>
             <UserPlus size={14} /> Register New Patient
           </button>
         </div>
@@ -103,9 +109,11 @@ export default function PatientSearchBox() {
                 <button className="btn btn-outline btn-sm" onClick={() => navigate(`/patients/${p.id}`)}>
                   <FileText size={13} /> History
                 </button>
-                <button className="btn btn-primary btn-sm" onClick={() => navigate('/opd/register')}>
-                  <UserPlus size={13} /> New Visit
-                </button>
+                {opdOn && (
+                  <button className="btn btn-primary btn-sm" onClick={() => navigate('/opd/register')}>
+                    <UserPlus size={13} /> New Visit
+                  </button>
+                )}
               </div>
             </div>
           ))}

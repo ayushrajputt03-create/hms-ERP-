@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useAuth } from '@hooks/useAuth'
 import { useFacility } from '@hooks/useFacility'
 import { useFirestoreCollection } from '@hooks/useFirestoreCollection'
@@ -104,29 +105,32 @@ export default function DashboardPage() {
       {(role === ROLES.FACILITY_ADMIN || role === ROLES.SUPER_ADMIN) && (
         <div className="dashboard-section">
           <h3><TrendingUp size={18} /> Quick Actions</h3>
+          {/* Router links, not plain <a href>. A bare href reloads the whole
+              SPA, which throws away the loaded facility config and session for
+              a navigation the router can do instantly. */}
           <div className="quick-actions">
             {isModuleEnabled('patients') && (
-              <a href="/patients" className="quick-action">
+              <Link to="/patients/new" className="quick-action">
                 <UserCheck size={20} />
                 <span>Register Patient</span>
-              </a>
+              </Link>
             )}
             {isModuleEnabled('opd') && (
-              <a href="/opd" className="quick-action">
+              <Link to="/opd" className="quick-action">
                 <Stethoscope size={20} />
                 <span>OPD Queue</span>
-              </a>
+              </Link>
             )}
             {isModuleEnabled('billing') && (
-              <a href="/billing" className="quick-action">
+              <Link to="/billing" className="quick-action">
                 <Receipt size={20} />
                 <span>Create Invoice</span>
-              </a>
+              </Link>
             )}
-            <a href="/staff" className="quick-action">
+            <Link to="/staff" className="quick-action">
               <Users size={20} />
               <span>Manage Staff</span>
-            </a>
+            </Link>
           </div>
         </div>
       )}
@@ -136,14 +140,14 @@ export default function DashboardPage() {
           <h3><BedDouble size={18} /> Beds by Ward</h3>
           <div className="ward-bed-summary">
             {wardBedStats.map((w) => (
-              <a key={w.id} href="/ipd" className="ward-bed-summary-row">
+              <Link key={w.id} to="/ipd" className="ward-bed-summary-row">
                 <span className="ward-bed-summary-name">{w.name}</span>
                 <span className="ward-bed-summary-counts">
                   <span className="badge badge-warning">{w.occupied} occupied</span>
                   <span className="badge badge-success">{w.available} available</span>
                   {w.cleaning > 0 && <span className="badge badge-muted">{w.cleaning} cleaning</span>}
                 </span>
-              </a>
+              </Link>
             ))}
           </div>
         </div>
