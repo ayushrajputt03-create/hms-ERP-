@@ -4,7 +4,7 @@ import { useAuth } from '@hooks/useAuth'
 import { setDocument } from '@lib/db'
 import { useToast } from '@components/Toast'
 import {
-  FACILITY_TYPE_LABELS, MODULE_LABELS, INDIAN_STATES,
+  FACILITY_TYPE_LABELS, FACILITY_TYPE_MODULES, MODULE_LABELS, INDIAN_STATES,
 } from '@lib/constants'
 import { Save, Building2, Settings, Shield, IndianRupee, Network } from 'lucide-react'
 import TariffMaster from './TariffMaster'
@@ -39,6 +39,27 @@ export default function FacilitySettings() {
       ...form,
       modules: { ...form.modules, [mod]: !form.modules[mod] },
     })
+  }
+
+  // Facility type used to be a locked field: whatever was picked in the setup
+  // wizard was permanent, and the only way to correct a wrong choice was to
+  // register a whole new facility. A clinic that adds beds, or a nursing home
+  // that opens a lab, is an ordinary thing — it should not cost a re-onboard.
+  //
+  // Changing the type deliberately does NOT touch the module switches. Type
+  // only seeds defaults at setup; after that the modules are operational
+  // state. Silently re-applying defaults could switch IPD off while patients
+  // are admitted, taking the ward board away from the staff using it. The
+  // defaults are offered as an explicit action below instead.
+  const typeChanged = form.facilityType !== facilityConfig?.facilityType
+
+  const defaultsFor = FACILITY_TYPE_MODULES[form.facilityType] || {}
+  const moduleDelta = Object.keys(defaultsFor)
+    .filter((m) => !!defaultsFor[m] !== !!form.modules?.[m])
+    .map((m) => ({ module: m, turningOn: !!defaultsFor[m] }))
+
+  const applyTypeDefaults = () => {
+    setForm({ ...form, modules: { ...form.modules, ...defaultsFor, billing: true } })
   }
 
   const handleSave = async () => {
@@ -100,7 +121,37 @@ export default function FacilitySettings() {
           </div>
           <div className="form-group">
             <label>Facility Type</label>
-            <input value={FACILITY_TYPE_LABELS[form.facilityType] || ''} disabled />
+            <select value={form.facilityType || ''} onChange={update('facilityType')}>
+              <option value="">Select type…</option>
+              {Object.entries(FACILITY_TYPE_LABELS).map(([key, label]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
+            </select>
+            {typeChanged && (
+              <p className="settings-hint">
+                {moduleDelta.length === 0 ? (
+                  <>Your modules already match this type. Save to apply the change.</>
+                ) : (
+                  <>
+                    Your modules are left exactly as they are. If you want the
+                    standard set for {FACILITY_TYPE_LABELS[form.facilityType]}, that
+                    would turn{' '}
+                    {moduleDelta.map((d, i) => (
+                      <span key={d.module}>
+                        {i > 0 && ', '}
+                        <strong>{MODULE_LABELS[d.module] || d.module}</strong>{' '}
+                        {d.turningOn ? 'on' : 'off'}
+                      </span>
+                    ))}
+                    .{' '}
+                    <button type="button" className="btn btn-outline btn-sm"
+                      onClick={applyTypeDefaults}>
+                      Apply defaults
+                    </button>
+                  </>
+                )}
+              </p>
+            )}
           </div>
           <div className="form-row">
             <div className="form-group">
