@@ -6,8 +6,9 @@ import { usePermission } from '@hooks/usePermission'
 import { subscribeToCollection } from '@lib/db'
 import { formatDate, toISODate } from '@lib/utils'
 import QuickBookModal from './QuickBookModal'
+import SelfCheckinQR from './SelfCheckinQR'
 import {
-  Stethoscope, ChevronLeft, ChevronRight, Plus, Calendar, Clock, UserPlus,
+  Stethoscope, ChevronLeft, ChevronRight, Plus, Calendar, Clock, UserPlus, ListOrdered,
 } from 'lucide-react'
 
 const STATUS_COLORS = {
@@ -24,7 +25,7 @@ const HOURS = Array.from({ length: 12 }, (_, i) => i + 8)
 export default function AppointmentCalendar() {
   const navigate = useNavigate()
   const { staffProfile } = useAuth()
-  const { facilityId } = useFacility()
+  const { facilityId, facilityConfig } = useFacility()
   const { can } = usePermission()
   const [visits, setVisits] = useState([])
   const [staff, setStaff] = useState([])
@@ -84,8 +85,12 @@ export default function AppointmentCalendar() {
             <button className={`btn ${view === 'day' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setView('day')}>Day</button>
             <button className={`btn ${view === 'week' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setView('week')}>Week</button>
           </div>
+          <button className="btn btn-outline" onClick={() => navigate('/opd/queue')}>
+            <ListOrdered size={16} /> Queue
+          </button>
           {can('opd', 'create') && (
             <>
+              <SelfCheckinQR facilityId={facilityId} facilityName={facilityConfig?.facilityName} />
               <button className="btn btn-outline" onClick={() => setBookModal({ date: currentDate })}>
                 <Plus size={16} /> Book Appointment
               </button>
