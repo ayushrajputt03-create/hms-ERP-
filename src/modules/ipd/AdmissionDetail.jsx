@@ -6,7 +6,10 @@ import { usePermission } from '@hooks/usePermission'
 import {
   subscribeToDocument, subscribeToCollection, addDocument, updateDocument, getDocument,
 } from '@lib/db'
-import { buildIpdAdmissionSlipPDF, buildDischargeSummaryPDF, printPDF } from "@lib/pdf"
+import {
+  buildIpdAdmissionSlipPDF, buildDischargeSummaryPDF, buildNursingChartPDF,
+  buildAdmissionConsentPDF, buildOtRecordPDF, printPDF,
+} from "@lib/pdf"
 import { departmentSummary } from '@lib/departments'
 import { dischargePatient, administerDose } from '@lib/ipd'
 import { canBill } from '@lib/billing'
@@ -85,6 +88,26 @@ export default function AdmissionDetail() {
     }
   }
 
+  // The bedside forms all take the same patient + admission pair, so one
+  // handler covers them and each button just names the builder it needs.
+  const printForm = async (builder, extra = {}) => {
+    try {
+      const patient = admission?.patientId
+        ? await getDocument(`facilities/${facilityId}/patients/${admission.patientId}`)
+        : null
+      const pdf = await builder({
+        facility: facilityConfig || {},
+        patient,
+        admission: { ...admission, id: admissionId },
+        ...extra,
+      })
+      printPDF(pdf)
+    } catch (err) {
+      console.error('Form print error:', err)
+      toast.error('Failed to prepare the form for printing.')
+    }
+  }
+
   const addNote = async () => {
     if (!noteText.trim()) return
     setSavingNote(true)
@@ -131,6 +154,15 @@ export default function AdmissionDetail() {
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button className="btn btn-outline" onClick={handlePrintSlip}>
             <Printer size={14} /> Admission Slip
+          </button>
+          <button className="btn btn-outline" onClick={() => printForm(buildAdmissionConsentPDF)}>
+            <Printer size={14} /> Admission + Consent
+          </button>
+          <button className="btn btn-outline" onClick={() => printForm(buildNursingChartPDF, { doses })}>
+            <Printer size={14} /> Nursing Chart
+          </button>
+          <button className="btn btn-outline" onClick={() => printForm(buildOtRecordPDF)}>
+            <Printer size={14} /> OT Record
           </button>
           {admission.status === 'discharged' && (
             <button className="btn btn-outline" onClick={handlePrintDischargeSummary}>

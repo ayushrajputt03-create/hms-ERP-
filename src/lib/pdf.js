@@ -1343,7 +1343,34 @@ export async function buildHospitalInvoicePDF({ facility, patient, invoice }) {
 
 // Bordered section with a filled title bar — the discharge summary's
 // "Clinical Course", "Investigations" etc.
-function drawSectionBox(pdf, { y, title, rightTitle, body, minBodyH = 0 }) {
+// A row of 2-3 signature blocks along the bottom of a form.
+function drawSignRow(pdf, { y, blocks }) {
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const margin = 12
+  pdf.setDrawColor(0, 0, 0)
+  pdf.setLineWidth(0.4)
+  pdf.line(margin, y, pageWidth - margin, y)
+
+  const usable = pageWidth - margin * 2 - 8
+  const w = usable / blocks.length
+  blocks.forEach((b, i) => {
+    const x = margin + 4 + i * w
+    const lineW = w - 8
+    pdf.setLineWidth(0.3)
+    pdf.line(x, y + 14, x + lineW, y + 14)
+    pdf.setFontSize(7.5)
+    pdf.setFont('helvetica', 'bold')
+    pdf.text(String(b.name || ''), x + lineW / 2, y + 17.5, { align: 'center' })
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(6.4)
+    pdf.setTextColor(113, 128, 150)
+    pdf.text(pdf.splitTextToSize(String(b.role || ''), lineW), x + lineW / 2, y + 20.8, { align: 'center' })
+    pdf.setTextColor(0, 0, 0)
+  })
+  return y + 26
+}
+
+function drawSectionBox(pdf, { y, title, rightTitle, body, minBodyH = 0, ruled = 0 }) {
   const pageWidth = pdf.internal.pageSize.getWidth()
   const margin = 12
   const w = pageWidth - margin * 2
@@ -1360,11 +1387,22 @@ function drawSectionBox(pdf, { y, title, rightTitle, body, minBodyH = 0 }) {
 
   pdf.setFontSize(8)
   const lines = body ? pdf.splitTextToSize(String(body), w - 6) : []
-  const bodyH = Math.max(lines.length * 4 + 4, minBodyH)
+  const bodyH = Math.max(lines.length * 4 + 4, minBodyH, ruled ? ruled * 7 + 3 : 0)
   pdf.setDrawColor(203, 213, 224)
   pdf.setLineWidth(0.3)
   pdf.rect(margin, y + 5.5, w, bodyH)
   if (lines.length) pdf.text(lines, margin + 3, y + 10)
+  // Faint writing rules for the sections staff fill in by hand at the bedside.
+  if (ruled) {
+    pdf.setDrawColor(226, 232, 240)
+    pdf.setLineWidth(0.15)
+    const startY = y + 5.5 + (lines.length ? lines.length * 4 + 6 : 7)
+    for (let i = 0; i < ruled; i++) {
+      const ly = startY + i * 7
+      if (ly > y + 5.5 + bodyH - 2) break
+      pdf.line(margin + 3, ly, margin + w - 3, ly)
+    }
+  }
   return y + 5.5 + bodyH
 }
 
@@ -1850,6 +1888,389 @@ export async function buildLabReportPDF({ facility, patient, order, pathologistN
       'Results must always be correlated clinically by the treating medical practitioner.',
     ],
     moduleName: 'Laboratory Information System',
+  })
+  return pdf
+}
+
+// Shared demographics rows for the IPD bedside forms.
+function ipdDetailRows(patient, admission) {
+  const ageSex = [
+    formatAge(patient?.dob),
+    patient?.gender && patient.gender[0].toUpperCase() + patient.gender.slice(1),
+  ].filter(Boolean).join(' / ')
+  return {
+    left: [
+      ['Patient Name', patient?.name || admission?.patientName],
+      ['Age / Sex', ageSex],
+      ['UHID Number', patient?.uhid || admission?.patientUhid],
+      ['IPD Admission No', admission?.ipdNumber || admission?.id],
+    ],
+    right: [
+      ['Department', admission?.departmentName],
+      ['Ward / Bed', [admission?.wardName, admission?.bedName].filter(Boolean).join(', ')],
+      ['Consultant', admission?.doctorName ? `Dr. ${admission.doctorName}` : null],
+      ['Admitted On', admission?.admissionDate
+        ? new Date(admission.admissionDate).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+        : null],
+    ],
+  }
+}
+
+// Daily bedside nursing chart. The vitals grid and fluid balance print blank —
+// this sheet is meant to hang at the bed and be filled in by hand each round;
+// only the MAR is pre-populated, because those doses are already ordered.
+export function buildNursingChartPDF({ facility, patient, admission, doses = [], chartDate = Date.now() }) {
+  const pdf = createPDF()
+  const pageHeight = pdf.internal.pageSize.getHeight()
+  const rows = ipdDetailRows(patient, admission)
+
+  let y = drawDocHeader(pdf, facility, {
+    docLabel: 'Bedside Nursing Chart',
+    docNumber: admission?.ipdNumber || admission?.id,
+    numberPrefix: 'IPD',
+    extraLine: [admission?.wardName, admission?.bedName].filter(Boolean).join(' | '),
+  })
+  y = drawDocBanner(pdf, {
+    y,
+    left: 'Daily Nursing Chart & Medication Administration Record',
+    right: `Date: ${new Date(chartDate).toLocaleDateString('en-IN', { dateStyle: 'medium' })}`,
+  })
+  y = drawDetailsBox(pdf, { y, leftRows: rows.left, rightRows: rows.right, labelW: 32 })
+
+  y += 4
+  pdf.setFontSize(7)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setTextColor(...NAVY)
+  pdf.text('4-HOURLY VITAL SIGNS (TPR / BP / SpO2)', 12, y)
+  pdf.setTextColor(0, 0, 0)
+  pdf.setFont('helvetica', 'normal')
+  y = drawDocTable(pdf, {
+    y: y + 1.5,
+    headers: ['Time', 'Temp (F)', 'Pulse /min', 'Resp /min', 'BP mmHg', 'SpO2 %', 'Nurse Initials & Remarks'],
+    widths: [22, 22, 24, 24, 26, 20, 48],
+    align: ['left', 'center', 'center', 'center', 'center', 'center', 'left'],
+    rows: ['06:00', '10:00', '14:00', '18:00', '22:00', '02:00'].map((t) => [t, '', '', '', '', '', '']),
+    bottomLimit: pageHeight - 100,
+  })
+
+  if (doses.length) {
+    y += 4
+    pdf.setFontSize(7)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setTextColor(...NAVY)
+    pdf.text('MEDICATION ADMINISTRATION RECORD (MAR)', 12, y)
+    pdf.setTextColor(0, 0, 0)
+    pdf.setFont('helvetica', 'normal')
+    y = drawDocTable(pdf, {
+      y: y + 1.5,
+      headers: ['#', 'Prescribed Medicine', 'Dosage', 'Scheduled', 'Status', 'Nurse Sign'],
+      widths: [8, 58, 32, 28, 30, 30],
+      align: ['center', 'left', 'left', 'left', 'left', 'left'],
+      rows: doses.map((d, i) => [
+        i + 1, d.medicine || '--', d.dosage || '--', d.scheduledTime || '--',
+        d.administered ? 'GIVEN' : 'Due', '',
+      ]),
+      bottomLimit: pageHeight - 70,
+    })
+  }
+
+  y += 4
+  y = drawDocTable(pdf, {
+    y,
+    headers: ['Fluid Intake Source', 'Intake (mL)', 'Fluid Output Source', 'Output (mL)'],
+    widths: [58, 32, 58, 38],
+    align: ['left', 'right', 'left', 'right'],
+    headerFill: [113, 128, 150],
+    rows: [['IV Fluids', '', 'Urine Output', ''], ['Oral', '', 'Drain / Vomitus', ''], ['TOTAL 24-HR INTAKE', '', 'TOTAL 24-HR OUTPUT', '']],
+    bottomLimit: pageHeight - 46,
+  })
+
+  drawSignRow(pdf, {
+    y: Math.max(y + 6, pageHeight - 46),
+    blocks: [
+      { name: '', role: 'Primary Ward Nurse' },
+      { name: '', role: 'Nursing Supervisor' },
+      { name: admission?.doctorName ? `Dr. ${admission.doctorName}` : '', role: 'Resident Medical Officer' },
+    ],
+  })
+  drawDocFooter(pdf, {
+    terms: [
+      'Every dose and vital check must be signed with time and staff initials by the administering nurse.',
+      'Verified at each shift handover and filed in the inpatient case record.',
+    ],
+    moduleName: 'Inpatient Nursing & MAR',
+  })
+  return pdf
+}
+
+// IPD admission sheet, with the informed consent as a second page — the two
+// sheets the admission counter prints together for signature.
+export function buildAdmissionConsentPDF({ facility, patient, admission }) {
+  const pdf = createPDF()
+  const pageHeight = pdf.internal.pageSize.getHeight()
+  const rows = ipdDetailRows(patient, admission)
+
+  let y = drawDocHeader(pdf, facility, {
+    docLabel: 'IPD Admission Sheet',
+    docNumber: admission?.ipdNumber || admission?.id,
+    numberPrefix: 'ADM',
+  })
+  y = drawDocBanner(pdf, {
+    y,
+    left: 'Inpatient Admission Record',
+    right: `Admitted: ${admission?.admissionDate
+      ? new Date(admission.admissionDate).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+      : '--'}`,
+  })
+  y = drawDetailsBox(pdf, {
+    y,
+    leftRows: [
+      ...rows.left,
+      ['Mobile No', maskPhone(patient?.phone)],
+      ['Address', [patient?.address, patient?.city, patient?.state].filter(Boolean).join(', ')],
+    ],
+    rightRows: [
+      ...rows.right,
+      ['ABHA ID / ABDM', patient?.abhaId],
+      ['Bed Charge / Day', admission?.ratePerDay != null ? `Rs. ${admission.ratePerDay}` : null],
+    ],
+    labelW: 32,
+  })
+
+  y += 4
+  y = drawSectionBox(pdf, {
+    y,
+    title: 'Provisional Diagnosis & Reason for Admission',
+    body: admission?.diagnosis || '',
+    ruled: admission?.diagnosis ? 1 : 3,
+  })
+  y += 3
+  // Admission vitals and next-of-kin aren't captured by the admit form, so
+  // they print as ruled fields for the counter to complete by hand.
+  y = drawSectionBox(pdf, {
+    y, title: 'Vital Signs at Admission (BP / Pulse / Temp / SpO2) & Known Allergies',
+    body: patient?.allergies?.length ? `Known allergies: ${patient.allergies.join(', ')}` : '',
+    ruled: 2,
+  })
+  y += 3
+  y = drawSectionBox(pdf, {
+    y, title: 'Next of Kin / Attendant, Contact Number & Insurance / TPA Details', ruled: 3,
+  })
+
+  drawSignRow(pdf, {
+    y: Math.max(y + 8, pageHeight - 46),
+    blocks: [
+      { name: '', role: 'Patient / Next of Kin Signature' },
+      { name: '', role: 'Admitting Medical Officer' },
+      { name: '', role: 'Witness / Ward Nurse' },
+    ],
+  })
+  drawDocFooter(pdf, {
+    terms: ['Signed original to be retained in the inpatient case file at the ward nursing station.'],
+    moduleName: 'IPD Admission & Consent',
+  })
+
+  // ---- Page 2: informed consent ----
+  pdf.addPage()
+  let cy = drawDocHeader(pdf, facility, {
+    docLabel: 'Informed Consent',
+    docNumber: admission?.ipdNumber || admission?.id,
+    numberPrefix: 'ADM',
+  })
+  cy = drawDocBanner(pdf, { y: cy, left: 'Informed Consent for Admission & Treatment' })
+  cy = drawDetailsBox(pdf, { y: cy, leftRows: rows.left.slice(0, 3), rightRows: rows.right.slice(0, 3), labelW: 32 })
+
+  cy += 4
+  const patientName = patient?.name || admission?.patientName || '__________________________'
+  const consult = admission?.doctorName ? `Dr. ${admission.doctorName}` : '__________________________'
+  cy = drawSectionBox(pdf, {
+    y: cy,
+    title: 'Consent Declaration',
+    body:
+      `I, ${patientName} (or next of kin signing on the patient's behalf), give my voluntary informed consent `
+      + `for admission to ${facility?.facilityName || 'this hospital'} under the care of ${consult} and team.\n\n`
+      + 'The nature of the condition, the proposed investigations and medical or surgical procedures, their '
+      + 'expected benefits, the possible risks and complications, and the available alternatives have been '
+      + 'explained to me in a language I understand, and my questions have been answered.\n\n'
+      + 'I consent to diagnostic tests, administration of medicines, blood transfusion if required, anaesthesia, '
+      + 'and to any additional procedure the treating doctors judge necessary during the course of treatment.\n\n'
+      + 'I understand that no guarantee has been given to me about the outcome of the treatment.',
+    minBodyH: 62,
+  })
+  cy += 3
+  cy = drawSectionBox(pdf, { y: cy, title: 'Procedure / Treatment Specifically Consented To', ruled: 3 })
+
+  drawSignRow(pdf, {
+    y: Math.max(cy + 10, pageHeight - 46),
+    blocks: [
+      { name: '', role: "Patient / Next of Kin Signature & Date" },
+      { name: '', role: 'Doctor Explaining the Consent' },
+      { name: '', role: 'Witness Signature' },
+    ],
+  })
+  drawDocFooter(pdf, {
+    terms: [
+      'This consent is printed in English. Where the signatory does not read English, the contents must be '
+      + 'explained in a language they understand and that fact recorded by the witness.',
+    ],
+    moduleName: 'IPD Admission & Consent',
+  })
+  return pdf
+}
+
+// Emergency medico-legal case report. Deliberately a structured blank form:
+// the app records the patient, not the police/FIR/injury findings, and a
+// medico-legal document must be written and signed by the duty officer.
+export function buildMlcReportPDF({ facility, patient, visit }) {
+  const pdf = createPDF()
+  const pageHeight = pdf.internal.pageSize.getHeight()
+  const DANGER = [197, 48, 48]
+
+  const ageSex = [
+    formatAge(patient?.dob),
+    patient?.gender && patient.gender[0].toUpperCase() + patient.gender.slice(1),
+  ].filter(Boolean).join(' / ')
+
+  let y = drawDocHeader(pdf, facility, {
+    docLabel: 'Medico-Legal Case (MLC)',
+    docNumber: visit?.mlcNumber || visit?.id || patient?.uhid,
+    numberPrefix: 'MLC',
+    extraLine: facility?.emergencyPhone ? `EMERGENCY CASUALTY 24x7: ${facility.emergencyPhone}` : '',
+    accent: DANGER,
+  })
+  y = drawDocBanner(pdf, {
+    y,
+    left: 'Medico-Legal Injury & Casualty Examination Report',
+    right: `Examined: ${new Date(visit?.visitDate || Date.now()).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`,
+  })
+  y = drawDetailsBox(pdf, {
+    y,
+    leftRows: [
+      ['Patient Name', patient?.name || visit?.patientName],
+      ['Age / Sex', ageSex],
+      ['UHID Number', patient?.uhid || visit?.patientUhid],
+      ['Address', [patient?.address, patient?.city, patient?.state].filter(Boolean).join(', ')],
+      ['Identification Marks', ''],
+    ],
+    rightRows: [
+      ['Brought By', ''],
+      ['Police Station', ''],
+      ['DD / FIR No.', ''],
+      ['Alleged Incident', ''],
+      ['Consciousness / GCS', ''],
+    ],
+    labelW: 34,
+  })
+
+  y += 4
+  y = drawSectionBox(pdf, {
+    y, title: 'Brief History of Alleged Incident (as narrated by patient / police)', ruled: 3,
+  })
+  y += 3
+  y = drawSectionBox(pdf, {
+    y, title: 'General Casualty Examination (BP / Pulse / SpO2 / Pupils / Smell of Alcohol)', ruled: 2,
+  })
+
+  y += 4
+  y = drawDocTable(pdf, {
+    y,
+    headers: ['#', 'Description & Location of Injury', 'Dimensions', 'Weapon / Force', 'Nature'],
+    widths: [8, 84, 28, 34, 32],
+    align: ['center', 'left', 'left', 'left', 'left'],
+    headerFill: DANGER,
+    rows: [1, 2, 3, 4].map((n) => [n, '', '', '', '']),
+    bottomLimit: pageHeight - 60,
+  })
+
+  y += 3
+  y = drawSectionBox(pdf, { y, title: 'Treatment Given & Opinion / Referral', ruled: 2 })
+
+  drawSignRow(pdf, {
+    y: Math.max(y + 6, pageHeight - 46),
+    blocks: [
+      { name: '', role: 'Signature / Thumb Impression of Injured' },
+      { name: '', role: 'Signature of Police Official' },
+      { name: '', role: 'Casualty Medical Officer' },
+    ],
+  })
+  drawDocFooter(pdf, {
+    terms: [
+      'Medico-legal document. Original to be forwarded to the police station; duplicate retained in the hospital MLC record.',
+      'To be completed in the doctor\'s own hand and signed with name, registration number and time of examination.',
+    ],
+    moduleName: 'Emergency & Medico-Legal Records',
+  })
+  return pdf
+}
+
+// OT operative note and anaesthesia record. The app has no OT module, so the
+// clinical content prints blank for theatre staff to complete and sign.
+export function buildOtRecordPDF({ facility, patient, admission }) {
+  const pdf = createPDF()
+  const pageHeight = pdf.internal.pageSize.getHeight()
+  const rows = ipdDetailRows(patient, admission)
+
+  let y = drawDocHeader(pdf, facility, {
+    docLabel: 'OT Surgical & Anaesthesia Record',
+    docNumber: admission?.ipdNumber || admission?.id,
+    numberPrefix: 'IPD',
+  })
+  y = drawDocBanner(pdf, {
+    y,
+    left: 'Operative Record & Intraoperative Anaesthesia Chart',
+    right: `Date: ${new Date().toLocaleDateString('en-IN', { dateStyle: 'medium' })}`,
+  })
+  y = drawDetailsBox(pdf, {
+    y,
+    leftRows: rows.left,
+    rightRows: [
+      ['Operating Surgeon', ''],
+      ['Anaesthetist', ''],
+      ['Scrub / OT Nurse', ''],
+      ['OT Room / ASA Grade', ''],
+    ],
+    labelW: 34,
+  })
+
+  y += 4
+  y = drawSectionBox(pdf, {
+    y, title: 'Pre-Operative & Post-Operative Diagnosis / Procedure Performed',
+    body: admission?.diagnosis ? `Admission diagnosis: ${admission.diagnosis}` : '',
+    ruled: 3,
+  })
+  y += 3
+  y = drawSectionBox(pdf, {
+    y, title: 'Operative Findings, Step-by-Step Course, Suture & Haemostasis', ruled: 6,
+  })
+  y += 3
+  y = drawSectionBox(pdf, {
+    y, title: 'Anaesthesia Technique, Drugs, IV Fluids & Estimated Blood Loss', ruled: 3,
+  })
+
+  y += 4
+  y = drawDocTable(pdf, {
+    y,
+    headers: ['Time', 'BP (mmHg)', 'Heart Rate /min', 'SpO2 %', 'Anaesthetist Note'],
+    widths: [26, 32, 32, 24, 72],
+    align: ['left', 'center', 'center', 'center', 'left'],
+    rows: [1, 2, 3, 4].map(() => ['', '', '', '', '']),
+    bottomLimit: pageHeight - 50,
+  })
+
+  drawSignRow(pdf, {
+    y: Math.max(y + 6, pageHeight - 46),
+    blocks: [
+      { name: '', role: 'Consultant Anaesthetist' },
+      { name: '', role: 'Scrub Nurse Verification' },
+      { name: '', role: 'Operating Surgeon' },
+    ],
+  })
+  drawDocFooter(pdf, {
+    terms: [
+      'Operative note must be written immediately after the procedure and signed by the operating surgeon.',
+      'Original filed in the inpatient medical record; specimen details recorded separately if sent to pathology.',
+    ],
+    moduleName: 'Operation Theatre & Surgical Suite',
   })
   return pdf
 }

@@ -5,12 +5,13 @@ import { useFacility } from '@hooks/useFacility'
 import { usePermission } from '@hooks/usePermission'
 import { getDocument, subscribeToCollection, updateDocument } from '@lib/db'
 import { formatDate, calculateAge, getInitials } from '@lib/utils'
+import { buildMlcReportPDF, printPDF } from '@lib/pdf'
 import Modal from '@components/Modal'
 import PatientTimeline from './PatientTimeline'
 import PatientQR from './PatientQR'
 import {
   ChevronLeft, Edit, Phone, Mail, MapPin, AlertTriangle,
-  Heart, User, Clock, FileText, Receipt, FlaskConical, BedDouble, Archive,
+  Heart, User, Clock, FileText, Receipt, FlaskConical, BedDouble, Archive, Printer,
 } from 'lucide-react'
 
 const TABS = [
@@ -25,7 +26,7 @@ export default function PatientProfile() {
   const { patientId } = useParams()
   const navigate = useNavigate()
   const { user, staffProfile } = useAuth()
-  const { facilityId } = useFacility()
+  const { facilityId, facilityConfig } = useFacility()
   const { can } = usePermission()
   const [patient, setPatient] = useState(null)
   const [tab, setTab] = useState('overview')
@@ -99,6 +100,17 @@ export default function PatientProfile() {
           <ChevronLeft size={16} /> Back to Patients
         </button>
         <div className="profile-header-actions">
+          {/* Casualty prints this the moment a police case walks in — the form
+              carries the patient's identity, the rest is written by the duty
+              officer, so it is available for every patient, not just flagged ones. */}
+          <button
+            className="btn btn-outline"
+            onClick={() => printPDF(buildMlcReportPDF({
+              facility: facilityConfig || {}, patient, visit: null,
+            }))}
+          >
+            <Printer size={14} /> MLC Form
+          </button>
           {can('patients', 'update') && (
             <button className="btn btn-outline" onClick={() => navigate(`/patients/${patientId}/edit`)}>
               <Edit size={14} /> Edit
