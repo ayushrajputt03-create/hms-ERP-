@@ -2777,3 +2777,176 @@ body {
   color: var(--text-muted);
   margin: 0.5rem 0 1rem;
 }
+
+/* ── Dashboard patient search ─────────────────────────────────────────── */
+
+.patient-search-input {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface, transparent);
+  color: var(--text-muted);
+}
+
+.patient-search-input input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 0.9rem;
+  color: inherit;
+  padding: 0;
+}
+
+.patient-search-results {
+  margin-top: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.patient-search-row {
+  display: grid;
+  grid-template-columns: minmax(200px, 2fr) minmax(150px, 1.2fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+.patient-search-identity,
+.patient-search-lastvisit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.patient-search-identity > *,
+.patient-search-lastvisit > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.patient-search-lastvisit { font-size: 0.8rem; }
+
+.patient-search-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+@media (max-width: 720px) {
+  .patient-search-row { grid-template-columns: 1fr; }
+  .patient-search-actions { justify-content: flex-start; }
+}
+
+/* ── OPD token lookup ─────────────────────────────────────────────────── */
+
+.token-lookup-form { align-items: flex-end; }
+
+.token-lookup-ambiguous {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 0.9rem;
+  border: 1px solid var(--warning, #d97706);
+  border-radius: 8px;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--warning, #d97706);
+}
+
+.token-lookup-result {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem;
+  margin-top: 0.9rem;
+}
+
+.token-lookup-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.9rem;
+}
+
+.token-lookup-head .registration-token-value { font-size: 2.2rem; }
+
+.token-lookup-badges {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* ---- Accounting (Phase 9) ------------------------------------------------ */
+
+/* The tie-out banner is the first thing on the Accounts tab. "Out of balance"
+   has to read as an alarm, not a status chip — it means a voucher reached the
+   ledger that the posting function was supposed to reject. */
+.ledger-tieout {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid;
+  margin-bottom: 1.25rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+.ledger-tieout.ok {
+  border-color: var(--success, #16a34a);
+  background: color-mix(in srgb, var(--success, #16a34a) 8%, transparent);
+  color: var(--success, #16a34a);
+}
+.ledger-tieout.bad {
+  border-color: var(--danger, #dc2626);
+  background: color-mix(in srgb, var(--danger, #dc2626) 10%, transparent);
+  color: var(--danger, #dc2626);
+  font-weight: 600;
+}
+.ledger-tieout svg { flex-shrink: 0; margin-top: 2px; }
+
+.selected-patient {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+/* Search hits in the deposit form are buttons, so they need the row layout
+   reset back off the <button> defaults. */
+button.patient-search-row.deposit-pick {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  padding: 0.55rem 0.7rem;
+}
+button.patient-search-row.deposit-pick:hover {
+  background: color-mix(in srgb, var(--text-muted, #64748b) 8%, transparent);
+}

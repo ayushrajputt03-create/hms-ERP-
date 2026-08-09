@@ -8,7 +8,8 @@ import { formatINR, formatDate } from '@lib/utils'
 import BillBuilder from './BillBuilder'
 import TpaTracker from './TpaTracker'
 import CollectionReport from './CollectionReport'
-import { Receipt, FilePlus, FileText, ShieldCheck, BarChart2 } from 'lucide-react'
+import AdvanceDeposits from './AdvanceDeposits'
+import { Receipt, FilePlus, FileText, ShieldCheck, BarChart2, Wallet } from 'lucide-react'
 
 export default function BillingPage() {
   const navigate = useNavigate()
@@ -36,6 +37,7 @@ export default function BillingPage() {
     mayBill && { key: 'builder', label: 'Bill Builder', icon: FilePlus },
     { key: 'invoices', label: 'Invoices', icon: FileText },
     tpaEnabled && { key: 'tpa', label: 'TPA Claims', icon: ShieldCheck },
+    mayBill && { key: 'deposits', label: 'Advance Deposits', icon: Wallet },
     mayBill && { key: 'report', label: 'Daily Report', icon: BarChart2 },
   ].filter(Boolean)
 
@@ -62,6 +64,7 @@ export default function BillingPage() {
           : <InvoiceList invoices={invoices} onOpen={(id) => navigate(`/billing/invoice/${id}`)} />
       )}
       {tab === 'tpa' && tpaEnabled && <TpaTracker invoices={invoices} />}
+      {tab === 'deposits' && mayBill && <AdvanceDeposits />}
       {tab === 'report' && mayBill && <CollectionReport invoices={invoices} />}
     </div>
   )

@@ -2336,3 +2336,143 @@ export function addTable(pdf, { headers, rows, startY, colWidths }) {
 
   return y
 }
+
+// Advance deposit receipt + running ledger (Phase 9, Part B item 10).
+//
+// The patient's copy of money handed over before treatment. It is not a bill:
+// the amount is a liability the hospital owes back until a discharge bill
+// consumes it, which is why the ledger strip below the receipt shows what has
+// been adjusted and what is still on deposit. Refunds print from the same
+// builder with `mode: 'refund'`, which is what makes the credit note and the
+// original receipt agree on the running balance.
+export function buildAdvanceDepositReceiptPDF({
+  facility, patient, deposit, ledger = [], mode = 'receipt',
+}) {
+  const pdf = createPDF()
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const margin = 15
+  const isRefund = mode === 'refund'
+
+  let y = addHeader(pdf, facility || {})
+
+  pdf.setFontSize(13)
+  pdf.setFont('helvetica', 'bold')
+  pdf.text(isRefund ? 'REFUND CREDIT NOTE' : 'ADVANCE DEPOSIT RECEIPT',
+    pageWidth / 2, y, { align: 'center' })
+  y += 9
+
+  pdf.setFontSize(9.5)
+  pdf.setFont('helvetica', 'normal')
+
+  const left = [
+    ['Receipt No.', deposit?.receiptNumber || '—'],
+    ['Date', formatReceiptDate(deposit?.createdAt)],
+    ['Mode', PAYMENT_MODE_LABELS_PDF[deposit?.depositMode] || deposit?.depositMode || '—'],
+    ['Voucher', deposit?.voucherNumber || '—'],
+  ]
+  const right = [
+    ['Patient', patient?.name || deposit?.patientName || '—'],
+    ['UHID', patient?.uhid || deposit?.patientUhid || '—'],
+    ['Age / Sex', [formatAge(patient?.dob), patient?.gender].filter(Boolean).join(' / ') || '—'],
+    ['Phone', patient?.phone ? maskPhone(patient.phone) : '—'],
+  ]
+
+  const colY = y
+  left.forEach(([k, v], i) => {
+    pdf.setFont('helvetica', 'bold')
+    pdf.text(`${k}:`, margin, colY + i * 6)
+    pdf.setFont('helvetica', 'normal')
+    pdf.text(String(v), margin + 26, colY + i * 6)
+  })
+  right.forEach(([k, v], i) => {
+    pdf.setFont('helvetica', 'bold')
+    pdf.text(`${k}:`, pageWidth / 2 + 5, colY + i * 6)
+    pdf.setFont('helvetica', 'normal')
+    pdf.text(String(v), pageWidth / 2 + 28, colY + i * 6)
+  })
+  y = colY + left.length * 6 + 6
+
+  // The amount box — the one number the patient checks at the counter.
+  const amount = Number(deposit?.amount) || 0
+  pdf.setFillColor(240, 245, 252)
+  pdf.setDrawColor(5, 38, 89)
+  pdf.setLineWidth(0.4)
+  pdf.rect(margin, y, pageWidth - margin * 2, 16, 'FD')
+  pdf.setFontSize(11)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setTextColor(5, 38, 89)
+  pdf.text(isRefund ? 'Amount Refunded' : 'Amount Received', margin + 4, y + 6.5)
+  pdf.setFontSize(14)
+  pdf.text(`Rs. ${amount.toFixed(2)}`, pageWidth - margin - 4, y + 7, { align: 'right' })
+  pdf.setFontSize(8.5)
+  pdf.setFont('helvetica', 'italic')
+  pdf.text(amountInWords(amount), margin + 4, y + 12.5)
+  pdf.setTextColor(0, 0, 0)
+  pdf.setFont('helvetica', 'normal')
+  pdf.setDrawColor(0, 0, 0)
+  y += 22
+
+  // Running ledger. Without it the receipt states a number the patient cannot
+  // reconcile against anything — this is the part that makes it auditable.
+  if (ledger.length > 0) {
+    pdf.setFontSize(10)
+    pdf.setFont('helvetica', 'bold')
+    pdf.text('Deposit Ledger', margin, y)
+    y += 5
+
+    let running = 0
+    const rows = ledger.map((e) => {
+      const credit = Number(e.credit) || 0
+      const debit = Number(e.debit) || 0
+      running += credit - debit
+      return [
+        formatReceiptDate(e.date),
+        e.description || e.narration || '—',
+        credit ? credit.toFixed(2) : '—',
+        debit ? debit.toFixed(2) : '—',
+        running.toFixed(2),
+      ]
+    })
+    y = addTable(pdf, {
+      headers: ['Date', 'Particulars', 'Deposited', 'Adjusted', 'Balance'],
+      rows,
+      startY: y,
+      colWidths: [24, 76, 26, 26, 28],
+    })
+    y += 4
+  }
+
+  const balance = Number(deposit?.balanceRemaining ?? deposit?.amount ?? 0)
+  pdf.setFontSize(10.5)
+  pdf.setFont('helvetica', 'bold')
+  pdf.text(`Balance on Deposit: Rs. ${balance.toFixed(2)}`, pageWidth - margin, y + 4,
+    { align: 'right' })
+  pdf.setFont('helvetica', 'normal')
+  y += 16
+
+  pdf.setFontSize(8.5)
+  pdf.text(isRefund
+    ? 'Refund issued against the unadjusted balance of the above deposit.'
+    : 'This deposit is refundable and will be adjusted against your final bill.',
+    margin, y)
+  y += 6
+  pdf.text('Received with thanks, subject to realisation.', margin, y)
+
+  const sigY = pdf.internal.pageSize.getHeight() - 32
+  pdf.setLineWidth(0.3)
+  pdf.line(pageWidth - margin - 55, sigY, pageWidth - margin, sigY)
+  pdf.setFontSize(9)
+  pdf.text('Authorised Signatory', pageWidth - margin - 27.5, sigY + 5, { align: 'center' })
+  pdf.line(margin, sigY, margin + 55, sigY)
+  pdf.text('Patient / Attendant', margin + 27.5, sigY + 5, { align: 'center' })
+
+  addFooter(pdf, { text: 'Computer-generated receipt. Please retain for adjustment against your final bill.' })
+  return pdf
+}
+
+function formatReceiptDate(ts) {
+  if (!ts) return '—'
+  const d = new Date(Number(ts))
+  if (Number.isNaN(d.getTime())) return '—'
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+}
