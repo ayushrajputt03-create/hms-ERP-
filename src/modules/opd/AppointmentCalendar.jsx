@@ -10,6 +10,7 @@ import SelfCheckinQR from './SelfCheckinQR'
 import OpdFootfallCard from './OpdFootfallCard'
 import {
   Stethoscope, ChevronLeft, ChevronRight, Plus, Calendar, Clock, UserPlus, ListOrdered,
+  CalendarClock,
 } from 'lucide-react'
 
 const STATUS_COLORS = {
@@ -88,6 +89,9 @@ export default function AppointmentCalendar() {
           </div>
           <button className="btn btn-outline" onClick={() => navigate('/opd/queue')}>
             <ListOrdered size={16} /> Queue
+          </button>
+          <button className="btn btn-outline" onClick={() => navigate('/opd/slots')}>
+            <CalendarClock size={16} /> Slots
           </button>
           {can('opd', 'create') && (
             <>

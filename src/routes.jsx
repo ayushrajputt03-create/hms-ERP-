@@ -26,6 +26,8 @@ const AppointmentCalendar = lazy(() => import('@modules/opd/AppointmentCalendar'
 const QueueScreen = lazy(() => import('@modules/opd/QueueScreen'))
 const ConsultationScreen = lazy(() => import('@modules/opd/ConsultationScreen'))
 const OPDRegistrationForm = lazy(() => import('@modules/opd/OPDRegistrationForm'))
+const SlotBookingPage = lazy(() => import('@modules/opd/SlotBookingPage'))
+const AvailabilitySettings = lazy(() => import('@modules/opd/AvailabilitySettings'))
 
 const QRBookingPage = lazy(() => import('@modules/public/QRBookingPage'))
 
@@ -104,6 +106,12 @@ export default function AppRoutes() {
           } />
           <Route path="opd/register" element={
             <ModuleGate module="opd"><OPDRegistrationForm /></ModuleGate>
+          } />
+          <Route path="opd/slots" element={
+            <ModuleGate module="opd"><SlotBookingPage /></ModuleGate>
+          } />
+          <Route path="opd/availability" element={
+            <ModuleGate module="opd"><AvailabilitySettings /></ModuleGate>
           } />
           <Route path="opd/queue" element={
             <ModuleGate module="opd"><QueueScreen /></ModuleGate>

@@ -1672,6 +1672,140 @@ a:hover { text-decoration: underline; }
 .queue-stat-active .queue-stat-num { color: var(--primary); }
 .queue-stat-success .queue-stat-num { color: var(--success); }
 
+/* ============== Appointment slots & availability ============== */
+.page-header-back { display: flex; align-items: center; gap: 0.5rem; }
+.page-header-back h2 { margin: 0; }
+
+.slot-month-nav { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+.slot-month-nav select { max-width: 220px; }
+
+/* Horizontal scroller: a month is 31 cells and must never widen the page. */
+.slot-date-strip {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+  scrollbar-width: thin;
+}
+
+.slot-date {
+  flex: 0 0 auto;
+  width: 52px;
+  padding: 0.45rem 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  color: var(--text);
+  cursor: pointer;
+  text-align: center;
+  line-height: 1.2;
+}
+.slot-date-day { display: block; font-size: 1.05rem; font-weight: 700; }
+.slot-date-wd { display: block; font-size: 0.68rem; color: var(--text-muted); }
+.slot-date.today { border-color: var(--primary); }
+.slot-date.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+.slot-date.active .slot-date-wd { color: rgba(255, 255, 255, 0.85); }
+
+.slot-controls { margin-bottom: 0.75rem; }
+
+.slot-disclaimer {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.85rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--primary);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+.slot-disclaimer > span { flex: 1; }
+
+.btn-link-inline {
+  background: none; border: none; padding: 0;
+  color: var(--primary); font: inherit; cursor: pointer; text-decoration: underline;
+}
+
+.slot-tabs { margin-bottom: 0.5rem; }
+.tab-count {
+  margin-left: 0.4rem; padding: 0 0.35rem;
+  border-radius: 999px; background: var(--bg-muted, rgba(127, 127, 127, 0.18));
+  font-size: 0.7rem;
+}
+
+.slot-summary { margin: 0 0 0.75rem; font-size: 0.85rem; color: var(--text-muted); }
+
+.slot-grid { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+.slot-btn {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  color: var(--primary);
+  font-size: 0.82rem; font-weight: 600;
+  cursor: pointer;
+}
+.slot-btn:hover:not(.disabled) { background: var(--primary); color: #fff; }
+.slot-btn.disabled {
+  border-color: var(--border);
+  color: var(--text-muted);
+  background: var(--bg-muted, rgba(127, 127, 127, 0.1));
+  cursor: not-allowed;
+  text-decoration: line-through;
+}
+.slot-btn.remainder { border-style: dashed; }
+.slot-remainder-icon { opacity: 0.75; }
+
+.slot-on-leave { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+
+.availability-doctor-picker { max-width: 320px; }
+.availability-section { margin-bottom: 1.75rem; }
+.availability-section h3 { font-size: 0.95rem; margin-bottom: 0.6rem; }
+
+.availability-card {
+  padding: 0.9rem 1rem;
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+}
+.availability-card-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 0.75rem; margin-top: 0.5rem;
+}
+.availability-add { padding-left: 0; }
+
+.day-toggles { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.day-toggle {
+  width: 34px; height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-weight: 700; font-size: 0.78rem;
+  cursor: pointer;
+}
+.day-toggle.active {
+  background: var(--success, #2f855a);
+  border-color: var(--success, #2f855a);
+  color: #fff;
+}
+
+.leave-list { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.leave-chip {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.35rem 0.5rem 0.35rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  font-size: 0.8rem;
+}
+
 /* ============== Dashboard token find/register ============== */
 .dashboard-token-find { margin-bottom: 1.25rem; }
 .dashboard-token-find .queue-section-title { margin-bottom: 0.5rem; }

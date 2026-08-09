@@ -20,7 +20,10 @@ export default function QuickBookModal({ isOpen, onClose, prefill = {}, doctors 
     departmentId: '',
     doctorId: prefill.doctorId || '',
     date: prefill.date || new Date().toISOString().split('T')[0],
-    hour: prefill.hour || 9,
+    // 'HH:MM'. Was an hour integer, which silently floored a 09:30 slot to
+    // 09:00 and would have booked the patient into the wrong half of the hour.
+    time: prefill.time
+      || `${String(prefill.hour ?? 9).padStart(2, '0')}:${String(prefill.minute ?? 0).padStart(2, '0')}`,
     chiefComplaint: '',
   })
 
@@ -73,7 +76,7 @@ export default function QuickBookModal({ isOpen, onClose, prefill = {}, doctors 
         patientId: form.patientId,
         departmentId: form.departmentId,
         doctorId: form.doctorId,
-        visitDate: new Date(`${form.date}T${String(form.hour).padStart(2, '0')}:00:00`).getTime(),
+        visitDate: new Date(`${form.date}T${form.time}:00`).getTime(),
         chiefComplaint: form.chiefComplaint,
       })
       onClose()
@@ -154,11 +157,7 @@ export default function QuickBookModal({ isOpen, onClose, prefill = {}, doctors 
         </div>
         <div className="form-group">
           <label><Clock size={14} /> Time</label>
-          <select value={form.hour} onChange={update('hour')}>
-            {Array.from({ length: 12 }, (_, i) => i + 8).map((h) => (
-              <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>
-            ))}
-          </select>
+          <input type="time" value={form.time} onChange={update('time')} />
         </div>
       </div>
 
