@@ -6,7 +6,7 @@ import { usePermission } from '@hooks/usePermission'
 import {
   subscribeToDocument, subscribeToCollection, addDocument, updateDocument, getDocument,
 } from '@lib/db'
-import { buildIpdAdmissionSlipPDF, buildDischargeSummaryPDF } from '@lib/pdf'
+import { buildIpdAdmissionSlipPDF, buildDischargeSummaryPDF, printPDF } from "@lib/pdf"
 import { departmentSummary } from '@lib/departments'
 import { dischargePatient, administerDose } from '@lib/ipd'
 import { canBill } from '@lib/billing'
@@ -64,7 +64,7 @@ export default function AdmissionDetail() {
       patient,
       admission: { ...admission, id: admissionId },
     })
-    pdf.save(`Admission-Slip-${admission?.patientUhid || admissionId}.pdf`)
+    printPDF(pdf)
   }
 
   const handlePrintDischargeSummary = async () => {
@@ -78,7 +78,7 @@ export default function AdmissionDetail() {
         admission: { ...admission, id: admissionId },
         doses,
       })
-      pdf.save(`Discharge-Summary-${admission?.patientUhid || admissionId}.pdf`)
+      printPDF(pdf)
     } catch (err) {
       console.error('Discharge summary PDF error:', err)
       toast.error('Failed to generate the discharge summary.')

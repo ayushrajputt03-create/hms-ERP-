@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useFacility } from '@hooks/useFacility'
 import { subscribeToCollection, getDocument } from '@lib/db'
-import { buildPharmacyInvoicePDF } from '@lib/pdf'
+import { buildPharmacyInvoicePDF, printPDF } from "@lib/pdf"
 import { formatINR, formatDate } from '@lib/utils'
 import DataTable from '@components/DataTable'
 import { useToast } from '@components/Toast'
@@ -65,7 +65,7 @@ export default function SalesTab() {
         medicineById: byId(medicines),
         batchById: byId(batches),
       })
-      pdf.save(`Pharmacy-Bill-${sale.patientUhid || sale.id}.pdf`)
+      printPDF(pdf)
     } catch (err) {
       console.error('Pharmacy bill PDF error:', err)
       toast.error('Failed to generate the pharmacy bill.')

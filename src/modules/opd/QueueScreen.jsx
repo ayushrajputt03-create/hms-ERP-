@@ -4,7 +4,7 @@ import { useAuth } from '@hooks/useAuth'
 import { useFacility } from '@hooks/useFacility'
 import { subscribeToCollection, updateDocument, getDocument } from '@lib/db'
 import { toISODate } from '@lib/utils'
-import { buildOpdSlipPDF } from '@lib/pdf'
+import { buildOpdSlipPDF, printPDF } from "@lib/pdf"
 import { departmentSummary } from '@lib/departments'
 import SelfCheckinQR from './SelfCheckinQR'
 import { ListOrdered, CheckCircle, Clock, UserCheck, XCircle, Printer, UserPlus, QrCode } from 'lucide-react'
@@ -107,7 +107,7 @@ export default function QueueScreen() {
       ? await getDocument(`facilities/${facilityId}/patients/${visit.patientId}`)
       : null
     const pdf = await buildOpdSlipPDF({ facility: facilityConfig || {}, patient, visit })
-    pdf.save(`OPD-Slip-${visit.patientUhid || visit.tokenNumber || visit.id}.pdf`)
+    printPDF(pdf)
   }
 
   const statusCounts = {

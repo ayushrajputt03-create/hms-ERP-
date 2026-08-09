@@ -51,6 +51,33 @@ export function createPDF({ orientation = 'portrait', unit = 'mm', format = 'a4'
   return new jsPDF({ orientation, unit, format })
 }
 
+// Every document in the app is meant to come out of the ward/counter printer,
+// not land in a Downloads folder for someone to lose. This opens the print
+// dialog directly from a hidden iframe: no file is saved, and no popup window
+// is opened (which browsers block). The blob URL is revoked once printing is
+// done so the PDF doesn't linger in memory.
+export function printPDF(pdf) {
+  pdf.autoPrint()
+  const blobUrl = pdf.output('bloburl')
+  const frame = document.createElement('iframe')
+  frame.style.position = 'fixed'
+  frame.style.right = '0'
+  frame.style.bottom = '0'
+  frame.style.width = '0'
+  frame.style.height = '0'
+  frame.style.border = '0'
+  frame.src = blobUrl
+  frame.onload = () => {
+    try { frame.contentWindow?.focus() } catch { /* cross-origin blob, dialog still fires */ }
+  }
+  document.body.appendChild(frame)
+  // Keep the frame alive long enough for the dialog to take over, then clean up.
+  setTimeout(() => {
+    frame.remove()
+    URL.revokeObjectURL(blobUrl)
+  }, 60000)
+}
+
 export function addHeader(pdf, facility, { y = 15 } = {}) {
   const pageWidth = pdf.internal.pageSize.getWidth()
 
@@ -1699,6 +1726,130 @@ export async function buildPharmacyInvoicePDF({
       'Goods once sold are not taken back without the original bill. Please check the expiry date before leaving the counter.',
     ],
     moduleName: 'Pharmacy & Drug Inventory Billing',
+  })
+  return pdf
+}
+
+// Pathology / diagnostic lab report. Out-of-range values print in red with a
+// LOW/HIGH flag worked out from the test's own reference interval, because a
+// result the reader has to compare by eye is the one that gets missed.
+function rangeFlag(value, normalRange) {
+  const num = parseFloat(value)
+  if (!Number.isFinite(num) || !normalRange) return null
+  const m = String(normalRange).match(/([\d.]+)\s*[-–]\s*([\d.]+)/)
+  if (!m) return null
+  const min = parseFloat(m[1])
+  const max = parseFloat(m[2])
+  if (num < min) return 'LOW'
+  if (num > max) return 'HIGH'
+  return 'NORMAL'
+}
+
+export async function buildLabReportPDF({ facility, patient, order, pathologistName }) {
+  const pdf = createPDF()
+  const pageHeight = pdf.internal.pageSize.getHeight()
+  const margin = 12
+
+  const items = order?.items || []
+  const reportedAt = order?.statusTimestamps?.report_ready || order?.reportedAt || Date.now()
+
+  let y = drawDocHeader(pdf, facility, {
+    docLabel: 'Pathology Report',
+    docNumber: order?.sampleId || order?.id,
+    numberPrefix: 'SAMPLE',
+    extraLine: facility?.nablNumber ? `NABL Accredited Lab No. ${facility.nablNumber}` : '',
+    accent: [43, 108, 176],
+  })
+
+  y = drawDocBanner(pdf, {
+    y,
+    left: 'Diagnostic Test Report & Clinical Interpretation',
+    right: `Reported: ${new Date(reportedAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`,
+  })
+
+  const ageSex = [
+    formatAge(patient?.dob),
+    patient?.gender && patient.gender[0].toUpperCase() + patient.gender.slice(1),
+  ].filter(Boolean).join(' / ')
+
+  y = drawDetailsBox(pdf, {
+    y,
+    leftRows: [
+      ['Patient Name', order?.patientName || patient?.name],
+      ['Age / Sex', ageSex],
+      ['UHID Number', order?.patientUhid || patient?.uhid],
+      ['Order No.', order?.id],
+    ],
+    rightRows: [
+      ['Referred By', order?.doctorName ? `Dr. ${order.doctorName}` : null],
+      ['Sample Collected', order?.statusTimestamps?.sample_collected
+        ? new Date(order.statusTimestamps.sample_collected).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+        : (order?.orderDate ? new Date(order.orderDate).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : null)],
+      ['Sample Type', [...new Set(items.map((i) => i.sampleType).filter(Boolean))].join(', ') || null],
+      ['ABHA ID / ABDM', patient?.abhaId],
+    ],
+    labelW: 32,
+  })
+
+  y += 4
+  y = drawDocTable(pdf, {
+    y,
+    headers: ['Test Parameter', 'Result', 'Unit', 'Biological Ref. Interval', 'Flag'],
+    widths: [62, 30, 20, 48, 26],
+    align: ['left', 'center', 'center', 'left', 'center'],
+    rows: items.map((it) => [
+      it.testName || '--',
+      it.result || '--',
+      it.unit || '--',
+      it.normalRange || '--',
+      rangeFlag(it.result, it.normalRange) || (it.abnormal ? 'ABNORMAL' : '--'),
+    ]),
+    bottomLimit: pageHeight - 80,
+  })
+
+  // Re-print abnormal results in red over the table rows we just drew is
+  // fragile; instead the out-of-range findings are called out explicitly.
+  const abnormal = items.filter((it) => {
+    const f = rangeFlag(it.result, it.normalRange)
+    return f === 'LOW' || f === 'HIGH' || (f === null && it.abnormal)
+  })
+  const remarks = items.filter((it) => it.remark)
+
+  if (abnormal.length || remarks.length) {
+    y += 4
+    const lines = [
+      ...abnormal.map((it) => {
+        const f = rangeFlag(it.result, it.normalRange)
+        return `${it.testName}: ${it.result}${it.unit ? ' ' + it.unit : ''} — ${f || 'ABNORMAL'}`
+          + (it.normalRange ? ` (ref ${it.normalRange})` : '')
+      }),
+      ...remarks.map((it) => `${it.testName}: ${it.remark}`),
+    ]
+    y = drawSectionBox(pdf, {
+      y,
+      title: 'Out-of-Range Findings & Laboratory Remarks',
+      rightTitle: abnormal.length ? `${abnormal.length} flagged` : 'No abnormal values',
+      body: lines.join('\n'),
+      minBodyH: 14,
+    })
+  }
+
+  const sigY = Math.max(y + 6, pageHeight - 46)
+  await drawSignatureStrip(pdf, {
+    y: sigY,
+    qrValue: order?.sampleId || order?.id,
+    qrTitle: 'Scan to verify this report',
+    qrLines: [`UHID: ${order?.patientUhid || '--'}`],
+    signName: pathologistName || order?.reportedBy || '',
+    signRole: 'Consultant Pathologist / Lab Director',
+  })
+
+  drawDocFooter(pdf, {
+    terms: [
+      'This is a computer-generated laboratory report.',
+      'Results must always be correlated clinically by the treating medical practitioner.',
+    ],
+    moduleName: 'Laboratory Information System',
   })
   return pdf
 }

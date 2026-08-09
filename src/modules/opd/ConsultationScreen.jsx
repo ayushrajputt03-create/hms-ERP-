@@ -7,7 +7,7 @@ import { completeOpdVisit } from '@lib/opd'
 import { formatDate, calculateAge } from '@lib/utils'
 import { stockByMedicine } from '@lib/pharmacy'
 import { flagVitals, checkPrescriptionAllergies } from '@lib/clinical'
-import { buildPrescriptionPDF } from '@lib/pdf'
+import { buildPrescriptionPDF, printPDF } from "@lib/pdf"
 import PrescriptionBuilder from './PrescriptionBuilder'
 import Modal from '@components/Modal'
 import {
@@ -188,7 +188,7 @@ export default function ConsultationScreen() {
         qualification: staffProfile?.qualification,
       },
     })
-    pdf.save(`Rx-${patient?.uhid || visit.patientUhid || visitId}.pdf`)
+    printPDF(pdf)
   }
 
   const handleEndVisit = async () => {

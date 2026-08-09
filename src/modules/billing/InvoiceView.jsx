@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '@hooks/useAuth'
 import { useFacility } from '@hooks/useFacility'
 import { subscribeToDocument, getDocument } from '@lib/db'
-import { buildHospitalInvoicePDF } from '@lib/pdf'
+import { buildHospitalInvoicePDF, printPDF } from "@lib/pdf"
 import { formatINR, formatDate } from '@lib/utils'
 import { PAYMENT_MODE_LABELS, PAYMENT_MODES, canBill, recordPayment, addCreditNote } from '@lib/billing'
 import { useToast } from '@components/Toast'
@@ -74,7 +74,7 @@ export default function InvoiceView() {
           cashierName: staffProfile?.name || '',
         },
       })
-      pdf.save(`Invoice-${invoice.invoiceNumber || invoice.id}.pdf`)
+      printPDF(pdf)
     } catch (err) {
       console.error('Invoice PDF error:', err)
       toast.error('Failed to generate the invoice PDF.')
@@ -90,7 +90,7 @@ export default function InvoiceView() {
           <ChevronLeft size={16} /> Back to Billing
         </button>
         <button className="btn btn-primary" onClick={handlePrintPdf} disabled={printing}>
-          <Printer size={15} /> {printing ? 'Preparing…' : 'Print / Save PDF'}
+          <Printer size={15} /> {printing ? 'Preparing…' : 'Print Invoice'}
         </button>
       </div>
 

@@ -4,7 +4,7 @@ import { useAuth } from '@hooks/useAuth'
 import { useFacility } from '@hooks/useFacility'
 import { subscribeToCollection, addDocument, updateDocument, incrementCounter } from '@lib/db'
 import { registerOpdVisit, registrationErrorMessage } from '@lib/opd'
-import { buildOpdSlipPDF } from '@lib/pdf'
+import { buildOpdSlipPDF, printPDF } from "@lib/pdf"
 import { departmentsForFlow, doctorsInDepartment, departmentLocation } from '@lib/departments'
 import {
   RELATION_TYPES, PATIENT_TYPES, PATIENT_TYPE_LABELS,
@@ -201,7 +201,7 @@ export default function OPDRegistrationForm() {
       patient: result.patient,
       visit: result.visit,
     })
-    pdf.save(`OPD-Slip-${result.patient?.uhid || result.visit?.tokenNumber}.pdf`)
+    printPDF(pdf)
   }
 
   if (result) {
