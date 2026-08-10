@@ -66,7 +66,29 @@ export async function resetPassword(email) {
   if (error) throw error
 }
 
+// Marks "signed up, facility not built yet". Read only as a fallback — a
+// real staff profile always overrides it. See AuthContext.
+export const PENDING_SETUP_KEY = 'hms-pending-facility-id'
+
+// localStorage throws outright in some private-browsing modes rather than
+// no-opping. Unguarded, that would take down sign-in over a hint flag.
+export function readFlag(key) {
+  try { return localStorage.getItem(key) } catch { return null }
+}
+
+export function setFlag(key, value) {
+  try { localStorage.setItem(key, value) } catch { /* nothing to fall back to */ }
+}
+
+export function clearFlag(key) {
+  try { localStorage.removeItem(key) } catch { /* nothing to fall back to */ }
+}
+
 export async function signOut() {
+  // Cleared here too because the flag is browser-wide, not per-account: left
+  // behind, it would follow the next person who signs in on this machine
+  // straight into the setup wizard.
+  clearFlag(PENDING_SETUP_KEY)
   if (!supabase) return
   await supabase.auth.signOut()
 }

@@ -1672,6 +1672,21 @@ a:hover { text-decoration: underline; }
 .queue-stat-active .queue-stat-num { color: var(--primary); }
 .queue-stat-success .queue-stat-num { color: var(--success); }
 
+/* Inline page-transition loader. Fades in after a short delay so a chunk that
+   resolves quickly — the common case, since chunks are cached after first
+   visit — never flashes a spinner at all. */
+.page-loader { display: flex; justify-content: center; padding: 3rem 0; }
+.page-loader-spinner {
+  width: 26px; height: 26px;
+  border: 2.5px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  opacity: 0;
+  animation: page-loader-spin 0.7s linear infinite, page-loader-in 1ms linear 150ms forwards;
+}
+@keyframes page-loader-spin { to { transform: rotate(360deg); } }
+@keyframes page-loader-in { to { opacity: 1; } }
+
 /* ============== Appointment slots & availability ============== */
 .page-header-back { display: flex; align-items: center; gap: 0.5rem; }
 .page-header-back h2 { margin: 0; }

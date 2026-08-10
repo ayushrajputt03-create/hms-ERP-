@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { signUpWithEmail, readableAuthError } from '@lib/auth'
+import { signUpWithEmail, readableAuthError, PENDING_SETUP_KEY, setFlag } from '@lib/auth'
 import { Activity, Mail, Lock, User, Eye, EyeOff } from 'lucide-react'
 
 export default function RegisterPage() {
@@ -28,7 +28,7 @@ export default function RegisterPage() {
     setLoading(true)
     try {
       await signUpWithEmail(form.email, form.password, form.name)
-      localStorage.setItem('hms-pending-facility-id', 'setup')
+      setFlag(PENDING_SETUP_KEY, '1')
       navigate('/setup')
     } catch (err) {
       console.error('Register error:', err, 'code:', err.code, 'message:', err.message)

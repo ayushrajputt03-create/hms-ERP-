@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@hooks/useAuth'
 import { setDocument } from '@lib/db'
+import { PENDING_SETUP_KEY, clearFlag } from '@lib/auth'
 import {
   FACILITY_TYPES, FACILITY_TYPE_LABELS, FACILITY_TYPE_MODULES, INDIAN_STATES,
 } from '@lib/constants'
@@ -104,7 +105,7 @@ export default function FacilitySetupWizard() {
         createdAt: now,
       })
 
-      localStorage.removeItem('hms-pending-facility-id')
+      clearFlag(PENDING_SETUP_KEY)
 
       setStaffProfile({
         uid: user.uid,

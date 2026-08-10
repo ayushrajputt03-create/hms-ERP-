@@ -7,7 +7,8 @@ import { buildHospitalInvoicePDF, printPDF } from "@lib/pdf"
 import { formatINR, formatDate } from '@lib/utils'
 import { PAYMENT_MODE_LABELS, PAYMENT_MODES, canBill, recordPayment, addCreditNote } from '@lib/billing'
 import { useToast } from '@components/Toast'
-import { ChevronLeft, Printer, IndianRupee, Undo2 } from 'lucide-react'
+import { ChevronLeft, Printer, IndianRupee, Undo2, MessageCircle } from 'lucide-react'
+import { sendInvoiceOnWhatsApp, canWhatsApp } from '@lib/whatsapp'
 
 export default function InvoiceView() {
   const { invoiceId } = useParams()
@@ -18,6 +19,7 @@ export default function InvoiceView() {
   const [invoice, setInvoice] = useState(null)
   const [loading, setLoading] = useState(true)
   const [printing, setPrinting] = useState(false)
+  const [sending, setSending] = useState(false)
   const mayBill = canBill(staffProfile?.role)
 
   useEffect(() => {
@@ -49,6 +51,30 @@ export default function InvoiceView() {
   // Department and consulting doctor aren't stored on the invoice itself — they
   // live on whichever visit/admission it was billed from, so they're fetched at
   // print time rather than duplicated into every invoice document.
+  // Opens WhatsApp with the bill summary addressed to the patient. The
+  // patient record is fetched here rather than read off the invoice because
+  // the phone number lives on the patient, and a number changed since billing
+  // should reach the patient where they are now.
+  async function handleWhatsApp() {
+    setSending(true)
+    try {
+      const patient = invoice.patientId
+        ? await getDocument(`facilities/${facilityId}/patients/${invoice.patientId}`)
+        : null
+      const phone = patient?.phone || invoice.patientPhone
+      if (!canWhatsApp(phone)) {
+        toast.error('No valid mobile number on this patient record.')
+        return
+      }
+      sendInvoiceOnWhatsApp({ facility: facilityConfig || {}, invoice, patient })
+    } catch (err) {
+      console.error('WhatsApp share error:', err)
+      toast.error('Could not open WhatsApp.')
+    } finally {
+      setSending(false)
+    }
+  }
+
   async function handlePrintPdf() {
     setPrinting(true)
     try {
@@ -88,6 +114,10 @@ export default function InvoiceView() {
       <div className="page-header no-print">
         <button className="btn btn-outline" onClick={() => navigate('/billing')}>
           <ChevronLeft size={16} /> Back to Billing
+        </button>
+        <button className="btn btn-outline" onClick={handleWhatsApp} disabled={sending}
+          title="Opens WhatsApp with the bill summary ready to send">
+          <MessageCircle size={15} /> {sending ? 'Opening…' : 'Send on WhatsApp'}
         </button>
         <button className="btn btn-primary" onClick={handlePrintPdf} disabled={printing}>
           <Printer size={15} /> {printing ? 'Preparing…' : 'Print Invoice'}
