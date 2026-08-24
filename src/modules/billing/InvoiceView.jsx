@@ -5,7 +5,7 @@ import { useFacility } from '@hooks/useFacility'
 import { subscribeToDocument, getDocument } from '@lib/db'
 import { buildHospitalInvoicePDF, printPDF } from "@lib/pdf"
 import { formatINR, formatDate } from '@lib/utils'
-import { PAYMENT_MODE_LABELS, PAYMENT_MODES, canBill, recordPayment, addCreditNote } from '@lib/billing'
+import { PAYMENT_MODE_LABELS, PAYMENT_MODES, canBill, recordPayment, addCreditNote, applyInvoiceDiscount, processRefund } from '@lib/billing'
 import { useToast } from '@components/Toast'
 import { ChevronLeft, Printer, IndianRupee, Undo2, MessageCircle } from 'lucide-react'
 import { sendInvoiceOnWhatsApp, canWhatsApp } from '@lib/whatsapp'
@@ -131,6 +131,8 @@ export default function InvoiceView() {
           payments={payments}
           creditNotes={creditNotes}
           toast={toast}
+          staffProfile={staffProfile}
+          facilityId={facilityId}
         />
       )}
 
@@ -198,6 +200,9 @@ export default function InvoiceView() {
             <div className="summary-row"><span>Credit Notes</span><span>− {formatINR(credited)}</span></div>
           )}
           <div className="summary-row"><span>Paid</span><span>{formatINR(invoice.paidAmount || 0)}</span></div>
+          {Number(invoice.refundedAmount) > 0 && (
+            <div className="summary-row text-danger"><span>Refunded</span><span>− {formatINR(invoice.refundedAmount)}</span></div>
+          )}
           {balanceDue > 0 && !cancelled && (
             <div className="summary-row summary-row-total"><span>Balance Due</span><span>{formatINR(balanceDue)}</span></div>
           )}
@@ -207,6 +212,7 @@ export default function InvoiceView() {
         {invoice.insuranceClaim && (
           <div className="invoice-insurance-note">
             Insurance / TPA: <strong>{invoice.insuranceClaim.tpaName}</strong> — status: {invoice.insuranceClaim.status}
+            {invoice.insuranceClaim.approvedAmount != null && ` (Approved: ${formatINR(invoice.insuranceClaim.approvedAmount)})`}
           </div>
         )}
 
@@ -224,6 +230,26 @@ export default function InvoiceView() {
                     <td>{PAYMENT_MODE_LABELS[p.mode] || p.mode}</td>
                     <td className="font-mono">{p.referenceNumber || '—'}</td>
                     <td style={{ textAlign: 'right' }}>{formatINR(p.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {(invoice.refunds || []).length > 0 && (
+          <div className="invoice-payments-block">
+            <div className="invoice-label">Refund History</div>
+            <table className="invoice-table">
+              <thead>
+                <tr><th>Date</th><th>Reason</th><th style={{ textAlign: 'right' }}>Amount</th></tr>
+              </thead>
+              <tbody>
+                {invoice.refunds.map((r) => (
+                  <tr key={r.id}>
+                    <td>{formatDate(r.processedAt, 'datetime')}</td>
+                    <td>{r.reason}</td>
+                    <td style={{ textAlign: 'right' }}>− {formatINR(r.amount)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -259,7 +285,7 @@ export default function InvoiceView() {
   )
 }
 
-function PaymentPanel({ invoice, balanceDue, payments, creditNotes, toast }) {
+function PaymentPanel({ invoice, balanceDue, payments, creditNotes, toast, staffProfile, facilityId }) {
   const [amount, setAmount] = useState('')
   const [mode, setMode] = useState('cash')
   const [reference, setReference] = useState('')
@@ -268,6 +294,22 @@ function PaymentPanel({ invoice, balanceDue, payments, creditNotes, toast }) {
   const [creditReason, setCreditReason] = useState('')
   const [creditAmount, setCreditAmount] = useState('')
   const [creditSaving, setCreditSaving] = useState(false)
+
+  // Discount form state
+  const [showDiscountForm, setShowDiscountForm] = useState(false)
+  const [discountAmount, setDiscountAmount] = useState('')
+  const [discountReason, setDiscountReason] = useState('')
+  const [discountSaving, setDiscountSaving] = useState(false)
+
+  // Refund form state
+  const [showRefundForm, setShowRefundForm] = useState(false)
+  const [refundAmount, setRefundAmount] = useState('')
+  const [refundReason, setRefundReason] = useState('')
+  const [refundSaving, setRefundSaving] = useState(false)
+
+  const role = staffProfile?.role
+  const isAdmin = ['facility_admin', 'super_admin'].includes(role)
+  const refundable = (Number(invoice.paidAmount) || 0) - (Number(invoice.refundedAmount) || 0)
 
   const handlePay = async () => {
     const amt = Number(amount)
@@ -303,21 +345,78 @@ function PaymentPanel({ invoice, balanceDue, payments, creditNotes, toast }) {
     }
   }
 
+  const handleDiscount = async () => {
+    const amt = Number(discountAmount)
+    if (!(amt >= 0)) { toast.error('Enter a valid discount amount.'); return }
+    if (!discountReason.trim()) { toast.error('Discount needs a reason.'); return }
+    setDiscountSaving(true)
+    try {
+      await applyInvoiceDiscount({
+        path: `facilities/${facilityId}/billing/${invoice.id}`,
+        discount: amt,
+        reason: discountReason.trim(),
+      })
+      toast.success('Discount applied.')
+      setDiscountAmount(''); setDiscountReason(''); setShowDiscountForm(false)
+    } catch (err) {
+      console.error(err)
+      toast.error(err.message || 'Failed to apply discount.')
+    } finally {
+      setDiscountSaving(false)
+    }
+  }
+
+  const handleRefund = async () => {
+    const amt = Number(refundAmount)
+    if (!(amt > 0)) { toast.error('Enter a valid refund amount.'); return }
+    if (amt > refundable + 0.01) { toast.error(`Refund amount exceeds refundable balance of ${formatINR(refundable)}.`); return }
+    if (!refundReason.trim()) { toast.error('Refund needs a reason.'); return }
+    setRefundSaving(true)
+    try {
+      await processRefund({
+        path: `facilities/${facilityId}/billing/${invoice.id}`,
+        amount: amt,
+        reason: refundReason.trim(),
+      })
+      toast.success('Refund processed.')
+      setRefundAmount(''); setRefundReason(''); setShowRefundForm(false)
+    } catch (err) {
+      console.error(err)
+      toast.error(err.message || 'Failed to process refund.')
+    } finally {
+      setRefundSaving(false)
+    }
+  }
+
   return (
     <div className="settings-section no-print">
-      <div className="builder-patient">
+      <div className="builder-patient" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
         <div>
           <strong>Balance Due</strong>{' '}
           <span style={{ fontSize: '1.1rem' }}>{formatINR(balanceDue)}</span>
         </div>
-        {payments.length > 0 && (
-          <button className="btn btn-outline btn-sm" onClick={() => setShowCreditForm((v) => !v)}>
-            <Undo2 size={14} /> Issue Credit Note
-          </button>
-        )}
+        <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
+          {payments.length > 0 && (
+            <button className="btn btn-outline btn-sm" onClick={() => setShowCreditForm((v) => !v)}>
+              <Undo2 size={14} /> Issue Credit Note
+            </button>
+          )}
+          {isAdmin && (
+            <>
+              <button className="btn btn-outline btn-sm" onClick={() => setShowDiscountForm((v) => !v)}>
+                Apply Discount
+              </button>
+              {refundable > 0.01 && (
+                <button className="btn btn-outline btn-sm text-danger" onClick={() => setShowRefundForm((v) => !v)}>
+                  Process Refund
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
-      {balanceDue > 0.01 && (
+      {balanceDue > 0.01 && !showCreditForm && !showDiscountForm && !showRefundForm && (
         <div className="form-row" style={{ alignItems: 'flex-end', marginTop: '0.75rem' }}>
           <div className="form-group">
             <label><IndianRupee size={13} /> Amount</label>
@@ -338,7 +437,8 @@ function PaymentPanel({ invoice, balanceDue, payments, creditNotes, toast }) {
           </button>
         </div>
       )}
-      {balanceDue <= 0.01 && creditNotes.length === 0 && (
+
+      {balanceDue <= 0.01 && creditNotes.length === 0 && !showDiscountForm && !showRefundForm && (
         <p className="text-muted" style={{ marginTop: '0.5rem' }}>Invoice fully paid.</p>
       )}
 
@@ -355,8 +455,44 @@ function PaymentPanel({ invoice, balanceDue, payments, creditNotes, toast }) {
           <button className="btn btn-outline" onClick={handleCreditNote} disabled={creditSaving}>
             {creditSaving ? 'Saving…' : 'Issue Credit Note'}
           </button>
+          <button className="btn btn-sm btn-outline text-muted" onClick={() => setShowCreditForm(false)}>Cancel</button>
+        </div>
+      )}
+
+      {showDiscountForm && (
+        <div className="form-row" style={{ alignItems: 'flex-end', marginTop: '0.75rem' }}>
+          <div className="form-group" style={{ flex: 2 }}>
+            <label>Discount Reason *</label>
+            <input value={discountReason} onChange={(e) => setDiscountReason(e.target.value)} placeholder="Reason for discount" />
+          </div>
+          <div className="form-group">
+            <label>Discount Amount (₹)</label>
+            <input type="number" min="0" value={discountAmount} onChange={(e) => setDiscountAmount(e.target.value)} />
+          </div>
+          <button className="btn btn-primary" onClick={handleDiscount} disabled={discountSaving}>
+            {discountSaving ? 'Applying…' : 'Apply Discount'}
+          </button>
+          <button className="btn btn-sm btn-outline text-muted" onClick={() => setShowDiscountForm(false)}>Cancel</button>
+        </div>
+      )}
+
+      {showRefundForm && (
+        <div className="form-row" style={{ alignItems: 'flex-end', marginTop: '0.75rem' }}>
+          <div className="form-group" style={{ flex: 2 }}>
+            <label>Refund Reason *</label>
+            <input value={refundReason} onChange={(e) => setRefundReason(e.target.value)} placeholder="Reason for refund" />
+          </div>
+          <div className="form-group">
+            <label>Refund Amount (₹) (Max: {formatINR(refundable)})</label>
+            <input type="number" min="0" max={refundable} value={refundAmount} onChange={(e) => setRefundAmount(e.target.value)} />
+          </div>
+          <button className="btn btn-primary text-danger" onClick={handleRefund} disabled={refundSaving}>
+            {refundSaving ? 'Processing…' : 'Process Refund'}
+          </button>
+          <button className="btn btn-sm btn-outline text-muted" onClick={() => setShowRefundForm(false)}>Cancel</button>
         </div>
       )}
     </div>
   )
 }
+

@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@hooks/useAuth'
 import { useFacility } from '@hooks/useFacility'
-import { subscribeToCollection, addDocument, updateDocument } from '@lib/db'
+import { subscribeToCollection, addDocument, updateLabOrderStatus } from '@lib/db'
 import { formatINR, formatDate } from '@lib/utils'
 import Modal from '@components/Modal'
 import ResultModal from './ResultModal'
-import { Plus, ArrowRight, FileText } from 'lucide-react'
+import { Plus, ArrowRight, FileText, AlertCircle } from 'lucide-react'
 
 const STATUS_FLOW = ['ordered', 'sample_collected', 'in_progress', 'report_ready']
 const STATUS_LABELS = {
@@ -21,6 +21,8 @@ export default function OrdersTab({ orders, tests, canWrite }) {
   const [orderModal, setOrderModal] = useState(false)
   const [resultModal, setResultModal] = useState(null)
   const [statusFilter, setStatusFilter] = useState('all')
+  const [actionError, setActionError] = useState('')
+  const [updatingId, setUpdatingId] = useState(null)
 
   const filtered = statusFilter === 'all' ? orders : orders.filter((o) => o.status === statusFilter)
 
@@ -29,17 +31,30 @@ export default function OrdersTab({ orders, tests, canWrite }) {
     if (idx === -1 || idx >= STATUS_FLOW.length - 1) return
     const next = STATUS_FLOW[idx + 1]
     if (next === 'report_ready') { setResultModal(order); return }
-    await updateDocument(`facilities/${facilityId}/lab/orders/${order.id}`, {
-      status: next,
-      [`statusTimestamps/${next}`]: Date.now(),
-    }, {
-      user: staffProfile?.name || user?.email, facilityId,
-      audit: { action: `lab_order_${next}`, module: 'lab' },
-    })
+
+    setUpdatingId(order.id)
+    setActionError('')
+    try {
+      await updateLabOrderStatus({
+        path: `facilities/${facilityId}/lab/orders/${order.id}`,
+        nextStatus: next,
+      })
+    } catch (err) {
+      console.error('Lab order transition error:', err)
+      setActionError(`Failed to transition status to ${STATUS_LABELS[next]}: ${err.message || err}`)
+    } finally {
+      setUpdatingId(null)
+    }
   }
 
   return (
     <div>
+      {actionError && (
+        <div className="auth-error" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <AlertCircle size={16} />
+          <span>{actionError}</span>
+        </div>
+      )}
       <div className="pharmacy-alerts">
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ maxWidth: 200 }}>
           <option value="all">All Statuses</option>
@@ -56,39 +71,51 @@ export default function OrdersTab({ orders, tests, canWrite }) {
         <div className="empty-state">No lab orders{statusFilter !== 'all' ? ` with status "${STATUS_LABELS[statusFilter]}"` : ''}.</div>
       ) : (
         <div className="queue-list">
-          {filtered.map((order) => (
-            <div key={order.id} className={`queue-card lab-order-${order.status}`}>
-              <div className="queue-patient-info">
-                <div className="queue-patient-name">{order.patientName}</div>
-                <div className="queue-patient-meta">
-                  <span className="font-mono">{order.patientUhid}</span>
-                  <span> — {formatDate(order.orderDate || order.createdAt, 'datetime')}</span>
+          {filtered.map((order) => {
+            const isBilled = order.billed || order.billedUpstream
+            return (
+              <div key={order.id} className={`queue-card lab-order-${order.status}`}>
+                <div className="queue-patient-info">
+                  <div className="queue-patient-name">{order.patientName}</div>
+                  <div className="queue-patient-meta">
+                    <span className="font-mono">{order.patientUhid}</span>
+                    <span> — {formatDate(order.orderDate || order.createdAt, 'datetime')}</span>
+                  </div>
+                  <div className="queue-doctor-name">
+                    {(order.items || []).map((it) => it.testName).join(', ')} — {formatINR(order.totalAmount)}
+                  </div>
                 </div>
-                <div className="queue-doctor-name">
-                  {(order.items || []).map((it) => it.testName).join(', ')} — {formatINR(order.totalAmount)}
+                <div className="queue-status">
+                  <span className={`badge ${order.status === 'report_ready' ? 'badge-success' : order.status === 'ordered' ? 'badge-muted' : 'badge-warning'}`}>
+                    {STATUS_LABELS[order.status] || order.status}
+                  </span>
+                  {isBilled && (
+                    <span className="badge badge-info" style={{ marginLeft: 6 }}>
+                      {order.billedUpstream ? 'Covered Upstream' : 'Billed'}
+                    </span>
+                  )}
+                </div>
+                <div className="queue-actions">
+                  {canWrite && order.status !== 'report_ready' && (
+                    <button
+                      className="btn btn-primary btn-sm"
+                      onClick={() => advanceStatus(order)}
+                      disabled={updatingId === order.id}
+                    >
+                      {updatingId === order.id ? 'Updating...' : order.status === 'in_progress' ? 'Enter Results' : (
+                        <>Next: {STATUS_LABELS[STATUS_FLOW[STATUS_FLOW.indexOf(order.status) + 1]]} <ArrowRight size={13} /></>
+                      )}
+                    </button>
+                  )}
+                  {order.status === 'report_ready' && (
+                    <button className="btn btn-outline btn-sm" onClick={() => setResultModal(order)}>
+                      <FileText size={13} /> View Report
+                    </button>
+                  )}
                 </div>
               </div>
-              <div className="queue-status">
-                <span className={`badge ${order.status === 'report_ready' ? 'badge-success' : order.status === 'ordered' ? 'badge-muted' : 'badge-warning'}`}>
-                  {STATUS_LABELS[order.status] || order.status}
-                </span>
-              </div>
-              <div className="queue-actions">
-                {canWrite && order.status !== 'report_ready' && (
-                  <button className="btn btn-primary btn-sm" onClick={() => advanceStatus(order)}>
-                    {order.status === 'in_progress' ? 'Enter Results' : (
-                      <>Next: {STATUS_LABELS[STATUS_FLOW[STATUS_FLOW.indexOf(order.status) + 1]]} <ArrowRight size={13} /></>
-                    )}
-                  </button>
-                )}
-                {order.status === 'report_ready' && (
-                  <button className="btn btn-outline btn-sm" onClick={() => setResultModal(order)}>
-                    <FileText size={13} /> View Report
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
@@ -118,6 +145,7 @@ function OrderTestModal({ tests, onClose, facilityId, performedBy }) {
   const [patients, setPatients] = useState([])
   const [patientId, setPatientId] = useState('')
   const [selectedTests, setSelectedTests] = useState([])
+  const [billedUpstream, setBilledUpstream] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -159,22 +187,26 @@ function OrderTestModal({ tests, onClose, facilityId, performedBy }) {
         orderDate: Date.now(),
         orderedBy: performedBy,
         facilityId,
+        billedUpstream,
+        billed: billedUpstream,
       }, {
         user: performedBy, facilityId,
         audit: { action: 'lab_order_created', module: 'lab' },
       })
 
-      await addDocument(`facilities/${facilityId}/billing`, {
-        patientId,
-        patientName: patient?.name || '',
-        patientUhid: patient?.uhid || '',
-        type: 'lab',
-        description: `Lab — ${items.map((i) => i.testName).join(', ')}`,
-        amount: total,
-        status: 'pending',
-        invoiceDate: Date.now(),
-        facilityId,
-      })
+      if (!billedUpstream) {
+        await addDocument(`facilities/${facilityId}/billing`, {
+          patientId,
+          patientName: patient?.name || '',
+          patientUhid: patient?.uhid || '',
+          type: 'lab',
+          description: `Lab — ${items.map((i) => i.testName).join(', ')}`,
+          amount: total,
+          status: 'pending',
+          invoiceDate: Date.now(),
+          facilityId,
+        })
+      }
 
       onClose()
     } catch (err) {
@@ -217,6 +249,16 @@ function OrderTestModal({ tests, onClose, facilityId, performedBy }) {
           </div>
         )}
       </div>
+      <div className="form-group">
+        <label className="checkbox-label" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input
+            type="checkbox"
+            checked={billedUpstream}
+            onChange={(e) => setBilledUpstream(e.target.checked)}
+          />
+          <span>Covered Upstream (Included in OPD consultation or IPD package)</span>
+        </label>
+      </div>
       <div className="form-actions">
         <strong style={{ marginRight: 'auto' }}>Total: {formatINR(total)}</strong>
         <button className="btn btn-outline" onClick={onClose}>Cancel</button>
@@ -227,3 +269,4 @@ function OrderTestModal({ tests, onClose, facilityId, performedBy }) {
     </Modal>
   )
 }
+

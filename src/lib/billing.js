@@ -69,9 +69,23 @@ async function pharmacySource(facilityId, patientId) {
     }))
 }
 
-// Extensible: add labSource here later — the bill builder consumes every source
-// uniformly by { key, source, description, amount }.
-const PENDING_SOURCES = [opdSource, ipdSource, pharmacySource]
+async function labSource(facilityId, patientId) {
+  const orders = await queryDocuments(`facilities/${facilityId}/lab/orders`, {
+    orderBy: 'patientId', equalTo: patientId,
+  })
+  return orders
+    .filter((o) => o.status !== 'cancelled' && o.billed !== true && o.billedUpstream !== true)
+    .map((o) => ({
+      key: `lab:${o.id}`,
+      source: 'lab',
+      orderId: o.id,
+      description: `Lab — ${(o.items || []).map((i) => i.testName).join(', ')}`,
+      amount: Number(o.totalAmount) || 0,
+      date: o.orderDate || o.createdAt,
+    }))
+}
+
+const PENDING_SOURCES = [opdSource, ipdSource, pharmacySource, labSource]
 
 export async function getPendingItems(facilityId, patientId) {
   if (!facilityId || !patientId) return []
@@ -152,3 +166,38 @@ export async function addCreditNote({ invoiceId, reason, amount }) {
   if (error) throw error
   return data
 }
+
+export async function updateInsuranceClaimStatus({ path, status, approvedAmount = null, remarks = null }) {
+  if (!supabase) throw new Error('Supabase not configured')
+  const { data, error } = await supabase.rpc('update_insurance_claim_status', {
+    p_path: path,
+    p_status: status,
+    p_approved_amount: approvedAmount,
+    p_remarks: remarks,
+  })
+  if (error) throw error
+  return data
+}
+
+export async function applyInvoiceDiscount({ path, discount, reason }) {
+  if (!supabase) throw new Error('Supabase not configured')
+  const { data, error } = await supabase.rpc('apply_invoice_discount', {
+    p_path: path,
+    p_discount: discount,
+    p_reason: reason,
+  })
+  if (error) throw error
+  return data
+}
+
+export async function processRefund({ path, amount, reason }) {
+  if (!supabase) throw new Error('Supabase not configured')
+  const { data, error } = await supabase.rpc('process_refund', {
+    p_path: path,
+    p_amount: amount,
+    p_reason: reason,
+  })
+  if (error) throw error
+  return data
+}
+

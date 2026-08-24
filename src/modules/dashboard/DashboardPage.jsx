@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '@hooks/useAuth'
 import { useFacility } from '@hooks/useFacility'
 import { useFirestoreCollection } from '@hooks/useFirestoreCollection'
-import { getDashboardStats } from '@lib/accounting'
+import { getDashboardStats, getRecentActivity } from '@lib/accounting'
 import { usePatientStats, formatCount } from '@hooks/usePatientStats'
 import { formatINR } from '@lib/utils'
 import StatCard from '@components/StatCard'
@@ -12,7 +12,7 @@ import { ROLES } from '@lib/constants'
 import {
   Users, Stethoscope, BedDouble, Receipt, Activity,
   UserCheck, FlaskConical, Pill, TrendingUp, AlertTriangle,
-  UserPlus, CalendarDays, CalendarRange, Hash,
+  UserPlus, CalendarDays, CalendarRange, Hash, Clock,
 } from 'lucide-react'
 import TokenLookup from '@modules/opd/TokenLookup'
 
@@ -38,6 +38,16 @@ export default function DashboardPage() {
     getDashboardStats()
       .then((s) => { if (live) setStats(s) })
       .catch((err) => { console.error('Dashboard stats error:', err); if (live) setStats(null) })
+    return () => { live = false }
+  }, [facilityId])
+
+  const [recentActivity, setRecentActivity] = useState(null)
+  useEffect(() => {
+    if (!facilityId) return
+    let live = true
+    getRecentActivity(12)
+      .then((a) => { if (live) setRecentActivity(a) })
+      .catch((err) => { console.error('Recent activity error:', err); if (live) setRecentActivity([]) })
     return () => { live = false }
   }, [facilityId])
 
@@ -230,9 +240,35 @@ export default function DashboardPage() {
 
       <div className="dashboard-section">
         <h3><Activity size={18} /> Recent Activity</h3>
-        <div className="empty-state">
-          <p>No recent activity. Start by registering patients or configuring your facility.</p>
-        </div>
+        {recentActivity === null ? (
+          <div className="empty-state"><p>Loading activity…</p></div>
+        ) : recentActivity.length === 0 ? (
+          <div className="empty-state"><p>No recent activity. Start by registering patients or configuring your facility.</p></div>
+        ) : (
+          <div className="activity-feed">
+            {recentActivity.map((entry) => (
+              <div key={entry.id} className="activity-entry">
+                <div className="activity-icon">
+                  <Clock size={13} />
+                </div>
+                <div className="activity-body">
+                  <div className="activity-desc">
+                    {entry.description || `${entry.action}${entry.module ? ` [${entry.module}]` : ''}`}
+                  </div>
+                  <div className="activity-meta text-muted">
+                    <span>{entry.performedBy?.name || 'System'}</span>
+                    {entry.performedBy?.role && <span> · {entry.performedBy.role.replace(/_/g, ' ')}</span>}
+                    {entry.timestamp && (
+                      <span> · {new Date(Number(entry.timestamp)).toLocaleString('en-IN', {
+                        day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+                      })}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

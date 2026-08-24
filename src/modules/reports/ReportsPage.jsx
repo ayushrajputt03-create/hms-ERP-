@@ -6,7 +6,7 @@ import { formatINR, formatDate, toISODate } from '@lib/utils'
 import { ROLES } from '@lib/constants'
 import StatCard from '@components/StatCard'
 import {
-  BarChart3, Stethoscope, BedDouble, IndianRupee, Pill, Download,
+  BarChart3, Stethoscope, BedDouble, IndianRupee, Pill, Download, Lock
 } from 'lucide-react'
 
 // The ledger, trial balance and day book used to live here as an "Accounts"
@@ -68,16 +68,46 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!facilityId) { setLoading(false); return }
-    const unsubs = [
-      subscribeToCollection(`facilities/${facilityId}/opdVisits`, setVisits),
-      subscribeToCollection(`facilities/${facilityId}/ipd/admissions`, setAdmissions),
-      subscribeToCollection(`facilities/${facilityId}/billing`, (data) => { setBilling(data); setLoading(false) }),
-      subscribeToCollection(`facilities/${facilityId}/pharmacy/sales`, setSales),
-      subscribeToCollection(`facilities/${facilityId}/ipd/wards`, setWards),
-    ]
+    if (!facilityId || !role) { setLoading(false); return }
+
+    const ALLOWED_ROLES = [ROLES.SUPER_ADMIN, ROLES.FACILITY_ADMIN, ROLES.DOCTOR, ROLES.BILLING_STAFF]
+    if (!ALLOWED_ROLES.includes(role)) {
+      setLoading(false)
+      return
+    }
+
+    const unsubs = []
+
+    if (role === ROLES.SUPER_ADMIN || role === ROLES.FACILITY_ADMIN) {
+      unsubs.push(
+        subscribeToCollection(`facilities/${facilityId}/opdVisits`, setVisits),
+        subscribeToCollection(`facilities/${facilityId}/ipd/admissions`, setAdmissions),
+        subscribeToCollection(`facilities/${facilityId}/billing`, (data) => { setBilling(data); setLoading(false) }),
+        subscribeToCollection(`facilities/${facilityId}/pharmacy/sales`, setSales),
+        subscribeToCollection(`facilities/${facilityId}/ipd/wards`, setWards)
+      )
+    } else if (role === ROLES.DOCTOR) {
+      const myId = user?.uid || staffProfile?.uid
+      unsubs.push(
+        subscribeToCollection(`facilities/${facilityId}/opdVisits`, setVisits, { filter: { 'data->>doctorId': myId } }),
+        subscribeToCollection(`facilities/${facilityId}/ipd/admissions`, setAdmissions, { filter: { 'data->>doctorId': myId } })
+      )
+      setBilling([])
+      setSales([])
+      setWards([])
+      setLoading(false)
+    } else if (role === ROLES.BILLING_STAFF) {
+      unsubs.push(
+        subscribeToCollection(`facilities/${facilityId}/billing`, (data) => { setBilling(data); setLoading(false) })
+      )
+      setVisits([])
+      setAdmissions([])
+      setSales([])
+      setWards([])
+    }
+
     return () => unsubs.forEach((fn) => fn())
-  }, [facilityId])
+  }, [facilityId, role, user, staffProfile])
 
   const range = useMemo(() => ({
     fromTs: new Date(from + 'T00:00:00').getTime(),
@@ -85,6 +115,17 @@ export default function ReportsPage() {
   }), [from, to])
 
   const inRange = (ts) => ts >= range.fromTs && ts <= range.toTs
+
+  const ALLOWED_ROLES = [ROLES.SUPER_ADMIN, ROLES.FACILITY_ADMIN, ROLES.DOCTOR, ROLES.BILLING_STAFF]
+  if (role && !ALLOWED_ROLES.includes(role)) {
+    return (
+      <div className="empty-state" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '48px 0' }}>
+        <Lock size={48} className="text-muted" />
+        <h3>Access Denied</h3>
+        <p className="text-muted">You do not have permission to view reports.</p>
+      </div>
+    )
+  }
 
   if (loading) return <div className="empty-state">Loading report data...</div>
 
@@ -134,7 +175,12 @@ export default function ReportsPage() {
 
       {tab === 'opd' && <OPDReport visits={visits.filter((v) => inRange(v.visitDate || v.createdAt || 0))} />}
       {tab === 'ipd' && isModuleEnabled('ipd') && <IPDReport admissions={admissions} wards={wards} inRange={inRange} />}
-      {tab === 'revenue' && <RevenueReport billing={billing.filter((b) => inRange(b.invoiceDate || b.createdAt || 0))} />}
+      {tab === 'revenue' && (
+        <div>
+          <RevenueReport billing={billing.filter((b) => inRange(b.invoiceDate || b.createdAt || 0))} />
+          <DailyCollectionSummary billing={billing} />
+        </div>
+      )}
       {tab === 'pharmacy' && <PharmacyReport sales={sales.filter((s) => inRange(s.saleDate || 0))} />}
     </div>
   )
@@ -248,6 +294,121 @@ function RevenueReport({ billing }) {
         ])}
         filename="invoices-report.csv"
       />
+    </div>
+  )
+}
+
+function DailyCollectionSummary({ billing }) {
+  const [date, setDate] = useState(() => toISODate(new Date()))
+
+  const range = useMemo(() => {
+    const start = new Date(date + 'T00:00:00').getTime()
+    const end = new Date(date + 'T23:59:59').getTime()
+    return { start, end }
+  }, [date])
+
+  const paymentsOnDate = useMemo(() => {
+    const list = []
+    const invoices = billing.filter((b) => b.type === 'invoice' && b.status !== 'cancelled')
+    invoices.forEach((inv) => {
+      const payments = inv.payments || []
+      payments.forEach((p) => {
+        const pDate = p.paymentDate || p.recordedAt
+        if (pDate >= range.start && pDate <= range.end) {
+          list.push({
+            invoiceNumber: inv.invoiceNumber,
+            patientName: inv.patientName,
+            amount: Number(p.amount) || 0,
+            mode: p.mode,
+            reference: p.referenceNumber || '—',
+          })
+        }
+      })
+    })
+    return list
+  }, [billing, range])
+
+  const totalsByMode = useMemo(() => {
+    const modes = { cash: 0, upi: 0, card: 0, bank_transfer: 0, cheque: 0 }
+    paymentsOnDate.forEach((p) => {
+      const m = p.mode
+      if (modes[m] !== undefined) {
+        modes[m] += p.amount
+      } else {
+        if (!modes.other) modes.other = 0
+        modes.other += p.amount
+      }
+    })
+    return modes
+  }, [paymentsOnDate])
+
+  const grandTotal = Object.values(totalsByMode).reduce((sum, v) => sum + v, 0)
+
+  const modeLabels = {
+    cash: 'Cash',
+    upi: 'UPI',
+    card: 'Card',
+    bank_transfer: 'Bank Transfer',
+    cheque: 'Cheque',
+    other: 'Other'
+  }
+
+  return (
+    <div className="settings-section" style={{ marginTop: '1.5rem', marginBottom: '1.5rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: 8 }}>
+        <h3>Daily Collection Summary</h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <label style={{ fontSize: 13, fontWeight: 'medium' }}>Collection Date:</label>
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            style={{ padding: '4px 8px', fontSize: 13 }}
+          />
+        </div>
+      </div>
+
+      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 16 }}>
+        {Object.entries(totalsByMode).map(([mode, val]) => (
+          <div key={mode} className="stat-card" style={{ padding: 12 }}>
+            <div className="stat-label" style={{ fontSize: 12 }}>{modeLabels[mode] || mode}</div>
+            <div className="stat-value" style={{ fontSize: 18 }}>{formatINR(val)}</div>
+          </div>
+        ))}
+        <div className="stat-card" style={{ padding: 12, border: '1px solid var(--primary-color, #052659)' }}>
+          <div className="stat-label" style={{ fontSize: 12, fontWeight: 'bold' }}>Grand Total</div>
+          <div className="stat-value" style={{ fontSize: 18, color: 'var(--primary-color, #052659)' }}>{formatINR(grandTotal)}</div>
+        </div>
+      </div>
+
+      {paymentsOnDate.length === 0 ? (
+        <p className="text-muted">No payments recorded on {formatDate(range.start)}.</p>
+      ) : (
+        <div className="data-table-scroll">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Invoice #</th>
+                <th>Patient</th>
+                <th>Payment Mode</th>
+                <th>Reference #</th>
+                <th>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paymentsOnDate.map((p, idx) => (
+                <tr key={idx}>
+                  <td>{p.invoiceNumber}</td>
+                  <td>{p.patientName}</td>
+                  <td><span className="badge badge-outline">{modeLabels[p.mode] || p.mode}</span></td>
+                  <td>{p.reference}</td>
+                  <td>{formatINR(p.amount)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }

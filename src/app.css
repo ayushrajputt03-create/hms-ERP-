@@ -1058,6 +1058,41 @@ a:hover { text-decoration: underline; }
 .ward-bed-summary-name { font-weight: 600; }
 .ward-bed-summary-counts { display: flex; gap: 0.5rem; }
 
+/* Activity feed */
+.activity-feed { display: flex; flex-direction: column; gap: 0; }
+.activity-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+.activity-entry:last-child { border-bottom: none; }
+.activity-entry:hover { background: var(--bg-hover, rgba(0,0,0,0.03)); }
+.activity-icon {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--primary-10, #e8f0fb);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+.activity-body { flex: 1; min-width: 0; }
+.activity-desc { font-size: 0.875rem; line-height: 1.4; }
+.activity-meta {
+  font-size: 0.75rem;
+  margin-top: 2px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem;
+}
+
+
 .empty-state {
   text-align: center;
   padding: 2rem;

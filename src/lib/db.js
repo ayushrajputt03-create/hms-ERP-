@@ -190,7 +190,7 @@ export function subscribeToDocument(path, callback) {
   return () => { supabase.removeChannel(channel) }
 }
 
-export function subscribeToCollection(collectionPath, callback) {
+export function subscribeToCollection(collectionPath, callback, { filter } = {}) {
   if (!supabase) { callback([]); return () => {} }
 
   // Maintain a local cache keyed by row path. The initial load fetches the
@@ -201,7 +201,13 @@ export function subscribeToCollection(collectionPath, callback) {
   const emit = () => callback(Array.from(cache.values()))
 
   const initialLoad = async () => {
-    const { data } = await supabase.from(TABLE).select('path,data').eq('collection', collectionPath)
+    let query = supabase.from(TABLE).select('path,data').eq('collection', collectionPath)
+    if (filter) {
+      Object.entries(filter).forEach(([k, v]) => {
+        query = query.eq(k, v)
+      })
+    }
+    const { data } = await query
     cache.clear()
     for (const row of data || []) cache.set(row.path, rowToDoc(row))
     ready = true
@@ -220,7 +226,23 @@ export function subscribeToCollection(collectionPath, callback) {
         if (payload.eventType === 'DELETE') {
           if (payload.old?.path) cache.delete(payload.old.path)
         } else if (payload.new?.path) {
-          cache.set(payload.new.path, rowToDoc(payload.new))
+          let matches = true
+          if (filter) {
+            for (const [k, v] of Object.entries(filter)) {
+              if (k.startsWith('data->>')) {
+                const field = k.slice(7)
+                if (payload.new.data?.[field] !== v) {
+                  matches = false
+                  break
+                }
+              }
+            }
+          }
+          if (matches) {
+            cache.set(payload.new.path, rowToDoc(payload.new))
+          } else {
+            cache.delete(payload.new.path)
+          }
         }
         emit()
       })
@@ -250,4 +272,40 @@ export async function adjustValue(path, delta) {
   return data == null ? null : Number(data)
 }
 
+// Phase 6 Lab Diagnostics — Server-enforced status transition RPC wrapper
+export async function updateLabOrderStatus({ path, nextStatus, results = null, reportFileUrl = null }) {
+  if (!supabase) throw new Error('Supabase not configured')
+  const { data, error } = await supabase.rpc('update_lab_order_status', {
+    p_path: path,
+    p_next_status: nextStatus,
+    p_results: results,
+    p_report_file_url: reportFileUrl,
+  })
+  if (error) throw error
+  return data
+}
+
+// Phase 6 Lab Diagnostics — Upload result attachment PDF/image to facility-scoped storage bucket
+export async function uploadLabResultFile({ facilityId, orderId, file }) {
+  if (!supabase) throw new Error('Supabase not configured')
+  const ext = file.name.split('.').pop()
+  const filePath = `facilities/${facilityId}/lab-orders/${orderId}/${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`
+
+  const { error } = await supabase.storage
+    .from('lab-results')
+    .upload(filePath, file, { upsert: true })
+
+  if (error) {
+    console.error('Lab file upload error:', error)
+    throw error
+  }
+
+  const { data: pubData } = supabase.storage
+    .from('lab-results')
+    .getPublicUrl(filePath)
+
+  return pubData?.publicUrl || filePath
+}
+
 export { supabase as db }
+

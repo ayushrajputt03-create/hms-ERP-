@@ -253,6 +253,16 @@ export async function getDashboardStats() {
   return data || null
 }
 
+// Returns the last `limit` audit-log entries for the caller's facility.
+// Fast because the RPC sorts inside the database and limits before returning —
+// the browser never downloads the full auditLog collection.
+export async function getRecentActivity(limit = 10) {
+  const { data, error } = await requireClient().rpc('hms_recent_activity', { p_limit: limit })
+  if (error) throw error
+  return data || []
+}
+
+
 export async function getCashPosition() {
   const { data, error } = await requireClient()
     .from('v_cash_position').select('*').maybeSingle()
