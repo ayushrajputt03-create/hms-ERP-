@@ -30,6 +30,7 @@ const SlotBookingPage = lazy(() => import('@modules/opd/SlotBookingPage'))
 const AvailabilitySettings = lazy(() => import('@modules/opd/AvailabilitySettings'))
 
 const QRBookingPage = lazy(() => import('@modules/public/QRBookingPage'))
+const LandingPage = lazy(() => import('@modules/public/LandingPage'))
 
 const PharmacyPage = lazy(() => import('@modules/pharmacy/PharmacyPage'))
 const LabPage = lazy(() => import('@modules/lab/LabPage'))
@@ -61,10 +62,18 @@ function FacilityRoutes() {
   )
 }
 
+function RootRoute() {
+  const { isAuthenticated, loading } = useAuth()
+  if (loading) return <LoadingScreen />
+  if (!isAuthenticated) return <LandingPage />
+  return <FacilityRoutes />
+}
+
 export default function AppRoutes() {
   return (
     <Suspense fallback={<Loader />}>
       <Routes>
+        <Route path="/landing" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -79,12 +88,15 @@ export default function AppRoutes() {
           </ProtectedRoute>
         } />
 
+        <Route path="/" element={<RootRoute />}>
+          <Route index element={<DashboardPage />} />
+        </Route>
+
         <Route element={
           <ProtectedRoute>
             <FacilityRoutes />
           </ProtectedRoute>
         }>
-          <Route index element={<DashboardPage />} />
 
           {/* Patients module */}
           <Route path="patients" element={
