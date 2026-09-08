@@ -69,7 +69,12 @@ export function AuthProvider({ children }) {
               pending: true,
             })
           } else {
-            setStaffProfile(null)
+            setStaffProfile((prev) => {
+              if (prev && prev.uid === firebaseUser.uid && prev.facilityId) {
+                return prev
+              }
+              return null
+            })
           }
         } catch (err) {
           // A lookup failure is not proof that setup is outstanding. Sending
