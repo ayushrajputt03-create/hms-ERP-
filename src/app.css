@@ -1,22 +1,22 @@
 :root {
-  /* Northstar navy palette */
-  --primary: #052659;
-  --primary-light: #5483B3;
-  --primary-dark: #021024;
-  --primary-rgb: 5, 38, 89;
-  --accent: #5483B3;
-  --accent-light: #7DA0CA;
-  --navy-pale: #C1E8FF;
+  /* Ultra-Professional Medical ERP Palette */
+  --primary: #0F172A;
+  --primary-light: #2563EB;
+  --primary-dark: #070B14;
+  --primary-rgb: 15, 23, 42;
+  --accent: #2563EB;
+  --accent-light: #60A5FA;
+  --navy-pale: #E0F2FE;
 
-  --bg: #F5F8FC;
+  --bg: #F8FAFC;
   --bg-card: #FFFFFF;
-  --bg-sidebar: #021024;
-  --bg-hover: #EEF3FA;
-  --bg-active: #DCE7F5;
+  --bg-sidebar: #0B132B;
+  --bg-hover: #F1F5F9;
+  --bg-active: #E2E8F0;
 
-  --text: #1E293B;
-  --text-secondary: #64748B;
-  --text-muted: #94A3B8;
+  --text: #0F172A;
+  --text-secondary: #475569;
+  --text-muted: #64748B;
   --text-on-primary: #FFFFFF;
 
   --border: #E2E8F0;
@@ -27,13 +27,13 @@
   --danger: #DC2626;
   --info: #0284C7;
 
-  --radius: 10px;
-  --radius-sm: 6px;
-  --radius-lg: 16px;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-lg: 20px;
 
-  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.04);
-  --shadow: 0 4px 12px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.03);
-  --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --shadow: 0 4px 16px -2px rgba(15, 23, 42, 0.06), 0 2px 4px -2px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 24px 32px -8px rgba(15, 23, 42, 0.12), 0 8px 16px -4px rgba(15, 23, 42, 0.06);
 
   --sidebar-width: 250px;
   --sidebar-collapsed: 64px;
@@ -41,18 +41,18 @@
 }
 
 .theme-dark {
-  --bg: #0F172A;
-  --bg-card: #1E293B;
-  --bg-hover: #334155;
-  --bg-active: #475569;
-  --text: #F1F5F9;
+  --bg: #0B0F19;
+  --bg-card: #151D2A;
+  --bg-hover: #1E293B;
+  --bg-active: #334155;
+  --text: #F8FAFC;
   --text-secondary: #94A3B8;
   --text-muted: #64748B;
-  --border: #334155;
-  --border-light: #1E293B;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.3);
+  --border: #1E293B;
+  --border-light: #151D2A;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 20px 30px rgba(0, 0, 0, 0.6);
 }
 
 /* ======================== Reset ======================== */
