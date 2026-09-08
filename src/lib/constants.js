@@ -1,24 +1,49 @@
 export const ROLES = {
   SUPER_ADMIN: 'super_admin',
   FACILITY_ADMIN: 'facility_admin',
+  DEPT_ADMIN: 'dept_admin',
   DOCTOR: 'doctor',
   NURSE: 'nurse',
   RECEPTIONIST: 'receptionist',
   PHARMACIST: 'pharmacist',
   LAB_TECH: 'lab_tech',
+  RADIOLOGIST: 'radiologist',
   BILLING_STAFF: 'billing_staff',
+  WARD_MANAGER: 'ward_manager',
 }
 
 export const ROLE_LABELS = {
   super_admin: 'Super Admin',
   facility_admin: 'Facility Admin',
-  doctor: 'Doctor',
+  dept_admin: 'Dept Admin / HOD',
+  doctor: 'Doctor / Consultant',
   nurse: 'Nurse / Ward Staff',
   receptionist: 'Receptionist / Front Desk',
   pharmacist: 'Pharmacist',
   lab_tech: 'Lab Technician',
+  radiologist: 'Radiologist',
   billing_staff: 'Billing / Accounts',
+  ward_manager: 'Ward / Bed Manager',
 }
+
+export const HOSPITAL_DEPARTMENTS = [
+  { id: 'cardiology', name: 'Cardiology', code: 'CARD', icon: 'Heart' },
+  { id: 'orthopedics', name: 'Orthopedics', code: 'ORTHO', icon: 'Activity' },
+  { id: 'oncology', name: 'Oncology', code: 'ONCO', icon: 'Shield' },
+  { id: 'neurology', name: 'Neurology', code: 'NEURO', icon: 'Zap' },
+  { id: 'pediatrics', name: 'Pediatrics', code: 'PED', icon: 'Smile' },
+  { id: 'gynecology', name: 'Gynecology & Obstetrics', code: 'OBGYN', icon: 'UserCheck' },
+  { id: 'ent', name: 'ENT (Ear, Nose, Throat)', code: 'ENT', icon: 'Radio' },
+  { id: 'dermatology', name: 'Dermatology', code: 'DERM', icon: 'Sun' },
+  { id: 'emergency', name: 'Emergency & Trauma', code: 'EMERGENCY', icon: 'AlertTriangle' },
+  { id: 'icu', name: 'Intensive Care Unit (ICU)', code: 'ICU', icon: 'Activity' },
+  { id: 'radiology', name: 'Radiology & Imaging', code: 'RAD', icon: 'Film' },
+  { id: 'pathology', name: 'Pathology & Lab', code: 'PATH', icon: 'FlaskConical' },
+  { id: 'general_medicine', name: 'General Medicine', code: 'GENMED', icon: 'Stethoscope' },
+  { id: 'general_surgery', name: 'General Surgery', code: 'SURGERY', icon: 'Scissors' },
+  { id: 'nephrology', name: 'Nephrology & Dialysis', code: 'NEPHRO', icon: 'Droplets' },
+  { id: 'gastroenterology', name: 'Gastroenterology', code: 'GASTRO', icon: 'Compass' },
+]
 
 export const MODULES = {
   DASHBOARD: 'dashboard',

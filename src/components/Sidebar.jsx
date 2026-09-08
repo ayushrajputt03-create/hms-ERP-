@@ -9,7 +9,7 @@ import { MODULE_LABELS } from '@lib/constants'
 import {
   LayoutDashboard, Users, Stethoscope, BedDouble, Pill,
   FlaskConical, Receipt, UserCog, Settings, BarChart3,
-  ChevronLeft, ChevronRight, Activity, BookOpen,
+  ChevronLeft, ChevronRight, Activity, BookOpen, Palette,
 } from 'lucide-react'
 
 const MODULE_ICONS = {
@@ -90,6 +90,16 @@ export default function Sidebar({ collapsed, onToggle }) {
             </button>
           )
         })}
+        {modules.includes('admin') && (
+          <button
+            className={`sidebar-item ${isActive('/admin/design-system') ? 'active' : ''}`}
+            onClick={() => navigate('/admin/design-system')}
+            title={collapsed ? 'Design System UI' : undefined}
+          >
+            <Palette size={20} />
+            {!collapsed && <span>Design System UI</span>}
+          </button>
+        )}
       </nav>
 
       <button className="sidebar-toggle" onClick={onToggle}>

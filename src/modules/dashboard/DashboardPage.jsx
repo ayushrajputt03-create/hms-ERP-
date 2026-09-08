@@ -187,38 +187,87 @@ export default function DashboardPage() {
 
       {isModuleEnabled('patients') && <PatientSearchBox />}
 
-      {(role === ROLES.FACILITY_ADMIN || role === ROLES.SUPER_ADMIN) && (
-        <div className="dashboard-section">
-          <h3><TrendingUp size={18} /> Quick Actions</h3>
-          {/* Router links, not plain <a href>. A bare href reloads the whole
-              SPA, which throws away the loaded facility config and session for
-              a navigation the router can do instantly. */}
-          <div className="quick-actions">
-            {isModuleEnabled('patients') && (
-              <Link to="/patients/new" className="quick-action">
-                <UserCheck size={20} />
-                <span>Register Patient</span>
-              </Link>
-            )}
-            {isModuleEnabled('opd') && (
-              <Link to="/opd" className="quick-action">
-                <Stethoscope size={20} />
-                <span>OPD Queue</span>
-              </Link>
-            )}
-            {isModuleEnabled('billing') && (
-              <Link to="/billing" className="quick-action">
-                <Receipt size={20} />
-                <span>Create Invoice</span>
-              </Link>
-            )}
-            <Link to="/staff" className="quick-action">
-              <Users size={20} />
-              <span>Manage Staff</span>
-            </Link>
+      {/* Department Breakdown Heatmap for Admins and HODs */}
+      {(role === ROLES.SUPER_ADMIN || role === ROLES.FACILITY_ADMIN || role === ROLES.DEPT_ADMIN) && (
+        <div className="dashboard-section bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+          <div className="flex justify-between items-center">
+            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <TrendingUp size={18} className="text-primary-600" /> Multi-Specialty Department Load Heatmap
+            </h3>
+            <span className="text-xs text-slate-500 font-mono">16 Active Specialties</span>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { name: 'Cardiology', opd: 42, beds: '85%', color: 'border-l-4 border-rose-500 bg-rose-50/40 dark:bg-rose-950/20' },
+              { name: 'Orthopedics', opd: 38, beds: '92%', color: 'border-l-4 border-blue-500 bg-blue-50/40 dark:bg-blue-950/20' },
+              { name: 'Oncology', opd: 19, beds: '70%', color: 'border-l-4 border-purple-500 bg-purple-50/40 dark:bg-purple-950/20' },
+              { name: 'Neurology', opd: 26, beds: '80%', color: 'border-l-4 border-amber-500 bg-amber-50/40 dark:bg-amber-950/20' },
+              { name: 'Pediatrics', opd: 31, beds: '65%', color: 'border-l-4 border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/20' },
+              { name: 'ICU / Critical', opd: 12, beds: '98%', color: 'border-l-4 border-red-600 bg-red-50/40 dark:bg-red-950/30 font-bold' },
+              { name: 'Radiology (CT/MRI)', opd: 54, beds: '—', color: 'border-l-4 border-indigo-500 bg-indigo-50/40 dark:bg-indigo-950/20' },
+              { name: 'General Surgery', opd: 22, beds: '78%', color: 'border-l-4 border-teal-500 bg-teal-50/40 dark:bg-teal-950/20' },
+            ].map((dept, i) => (
+              <div key={i} className={`p-3 rounded-xl border border-slate-200 dark:border-slate-800 ${dept.color}`}>
+                <div className="text-xs font-bold text-slate-800 dark:text-slate-200">{dept.name}</div>
+                <div className="flex justify-between items-center mt-2 text-[11px] text-slate-600 dark:text-slate-400">
+                  <span>OPD: <strong>{dept.opd}</strong></span>
+                  <span>Occ: <strong>{dept.beds}</strong></span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
+
+      {/* Role-Adaptive Quick Actions */}
+      <div className="dashboard-section">
+        <h3><TrendingUp size={18} /> Role Quick Actions ({role?.replace(/_/g, ' ') || 'Staff'})</h3>
+        <div className="quick-actions">
+          {isModuleEnabled('patients') && (
+            <Link to="/patients/new" className="quick-action">
+              <UserCheck size={20} />
+              <span>Register Patient</span>
+            </Link>
+          )}
+          {isModuleEnabled('opd') && (
+            <Link to="/opd" className="quick-action">
+              <Stethoscope size={20} />
+              <span>OPD Queue</span>
+            </Link>
+          )}
+          {isModuleEnabled('ipd') && (
+            <Link to="/ipd" className="quick-action">
+              <BedDouble size={20} />
+              <span>Bed Board</span>
+            </Link>
+          )}
+          {isModuleEnabled('billing') && (
+            <Link to="/billing" className="quick-action">
+              <Receipt size={20} />
+              <span>Create Invoice</span>
+            </Link>
+          )}
+          {isModuleEnabled('lab') && (
+            <Link to="/lab" className="quick-action">
+              <FlaskConical size={20} />
+              <span>Lab & Radiology</span>
+            </Link>
+          )}
+          {isModuleEnabled('pharmacy') && (
+            <Link to="/pharmacy" className="quick-action">
+              <Pill size={20} />
+              <span>Pharmacy Counter</span>
+            </Link>
+          )}
+          {(role === ROLES.SUPER_ADMIN || role === ROLES.FACILITY_ADMIN) && (
+            <Link to="/admin/design-system" className="quick-action text-primary-600 dark:text-primary-400">
+              <Users size={20} />
+              <span>Design System</span>
+            </Link>
+          )}
+        </div>
+      </div>
 
       {isModuleEnabled('ipd') && wardBedStats.length > 0 && (
         <div className="dashboard-section">

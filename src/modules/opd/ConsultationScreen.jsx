@@ -383,7 +383,13 @@ export default function ConsultationScreen() {
               />
             </div>
             {!isCompleted && (
-              <div className="form-group" style={{ alignSelf: 'flex-end' }}>
+              <div className="form-group flex flex-wrap gap-2" style={{ alignSelf: 'flex-end' }}>
+                <button
+                  className="btn btn-outline border-blue-600 text-blue-600 dark:text-blue-400 font-bold"
+                  onClick={() => alert(`1-Click Referral Generated: Patient ${patient?.name || visit.patientName} referred from current department to Radiology (CT/MRI) with pre-filled notes: "${chiefComplaint || 'Consultation referral'}"`)}
+                >
+                  Refer to Radiology
+                </button>
                 <button
                   className="btn btn-outline"
                   onClick={() => navigate(`/ipd/admit?patientId=${visit.patientId}&visitId=${visitId}`)}

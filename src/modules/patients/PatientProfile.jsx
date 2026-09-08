@@ -142,12 +142,20 @@ export default function PatientProfile() {
       </Modal>
 
       {patient.allergies?.length > 0 && (
-        <div className="allergy-banner">
-          <AlertTriangle size={16} />
-          <strong>ALLERGIES:</strong>
-          {patient.allergies.map((a, i) => (
-            <span key={i} className="allergy-tag">{a}</span>
-          ))}
+        <div className="p-4 bg-rose-600 text-white rounded-xl shadow-lg border-2 border-rose-700 space-y-1 my-4">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="animate-bounce shrink-0" size={24} />
+            <div>
+              <h3 className="font-bold uppercase tracking-wider text-xs text-rose-100">CRITICAL ALLERGY ALERT — SEVERE RISK</h3>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {patient.allergies.map((a, i) => (
+                  <span key={i} className="px-2.5 py-0.5 bg-white text-rose-800 rounded-md font-bold text-xs shadow-sm">
+                    ⚠️ {a}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

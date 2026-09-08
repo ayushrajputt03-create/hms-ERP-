@@ -17,6 +17,7 @@ const DashboardPage = lazy(() => import('@modules/dashboard/DashboardPage'))
 const StaffListPage = lazy(() => import('@modules/staff/StaffListPage'))
 const FacilitySettings = lazy(() => import('@modules/admin/FacilitySettings'))
 const AuditLogViewer = lazy(() => import('@modules/admin/AuditLogViewer'))
+const DesignSystemViewer = lazy(() => import('@modules/admin/DesignSystemViewer'))
 
 const PatientListPage = lazy(() => import('@modules/patients/PatientListPage'))
 const PatientForm = lazy(() => import('@modules/patients/PatientForm'))
@@ -143,6 +144,9 @@ export default function AppRoutes() {
           } />
           <Route path="admin/audit" element={
             <ModuleGate module="admin"><AuditLogViewer /></ModuleGate>
+          } />
+          <Route path="admin/design-system" element={
+            <ModuleGate module="admin"><DesignSystemViewer /></ModuleGate>
           } />
 
           {/* IPD module */}
