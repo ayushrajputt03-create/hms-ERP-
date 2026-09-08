@@ -5,7 +5,7 @@ import {
   Activity, Stethoscope, BedDouble, Pill, FlaskConical, Receipt,
   ShieldCheck, Clock, CheckCircle2, ChevronDown, ChevronRight,
   TrendingUp, Users, ArrowRight, Star, Sparkles, Building2,
-  FileText, Award, Smartphone, Check, HelpCircle, Layers, Zap
+  FileText, Award, Smartphone, Check, HelpCircle, Layers, Zap, X, Search
 } from 'lucide-react'
 import './landing.css'
 
@@ -15,14 +15,15 @@ export default function LandingPage() {
   const [billingCycle, setBillingCycle] = useState('monthly') // 'monthly' | 'annual'
   const [activePreviewTab, setActivePreviewTab] = useState('opd')
   const [openFaq, setOpenFaq] = useState(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Interactive ROI Calculator State
-  const [patientsPerDay, setPatientsPerDay] = useState(50)
-  const [bedCapacity, setBedCapacity] = useState(20)
+  const [patientsPerDay, setPatientsPerDay] = useState(60)
+  const [bedCapacity, setBedCapacity] = useState(25)
 
   // Computed ROI
   const hoursSavedPerDay = (patientsPerDay * 0.08 + bedCapacity * 0.15).toFixed(1)
-  const monthlyRevenueSaved = Math.round(patientsPerDay * 300 + bedCapacity * 1200)
+  const monthlyRevenueSaved = Math.round(patientsPerDay * 320 + bedCapacity * 1250)
 
   const toggleFaq = (index) => {
     setOpenFaq(openFaq === index ? null : index)
@@ -36,8 +37,23 @@ export default function LandingPage() {
     }
   }
 
+  // Sample OPD Data filtered by search query
+  const sampleOpdData = [
+    { token: 'T-16', name: 'Rajesh Kumar', doctor: 'Dr. A. K. Sharma (Cardiology)', status: 'In Consultation', badgeClass: 'badge-success', action: 'View Rx' },
+    { token: 'T-17', name: 'Pooja Verma', doctor: 'Dr. Neha Gupta (Gen. Medicine)', status: 'Waiting in Queue', badgeClass: 'badge-warning', action: 'Call Token' },
+    { token: 'T-18', name: 'Amit Patel', doctor: 'Dr. A. K. Sharma (Cardiology)', status: 'Registered (QR)', badgeClass: 'badge-info', action: 'Start Visit' },
+    { token: 'T-19', name: 'Sunita Devi', doctor: 'Dr. R. S. Verma (Orthopedics)', status: 'Vitals Recorded', badgeClass: 'badge-purple', action: 'Assign Room' }
+  ].filter(item =>
+    item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    item.doctor.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    item.token.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
   return (
     <div className="landing-container">
+      {/* Glow Backdrop */}
+      <div className="landing-glow-bg"></div>
+
       {/* Top Announcement Bar */}
       <div className="announcement-bar">
         <span>✨ HMS ERP v2.4 Released — Real-time ABDM-ready OPD Queues, Lab Diagnostics & Accounts</span>
@@ -61,6 +77,7 @@ export default function LandingPage() {
         <div className="nav-links">
           <a href="#features">Features</a>
           <a href="#showcase">Product Tour</a>
+          <a href="#comparison">Why Us</a>
           <a href="#calculator">ROI Estimator</a>
           <a href="#pricing">Pricing</a>
           <a href="#faq">FAQ</a>
@@ -100,7 +117,7 @@ export default function LandingPage() {
         </p>
 
         <div className="hero-cta-group">
-          <button className="landing-btn landing-btn-lg landing-btn-primary" onClick={handleCta}>
+          <button className="landing-btn landing-btn-lg landing-btn-primary glow-button" onClick={handleCta}>
             <Sparkles size={18} /> Start 30-Day Free Trial
           </button>
           <a href="#showcase" className="landing-btn landing-btn-lg landing-btn-outline">
@@ -129,290 +146,313 @@ export default function LandingPage() {
         </div>
 
         {/* Live Interactive App Preview Box */}
-        <div className="preview-window" id="showcase">
-          <div className="preview-header">
-            <div className="window-dots">
-              <span className="dot dot-red"></span>
-              <span className="dot dot-yellow"></span>
-              <span className="dot dot-green"></span>
-            </div>
-            <div className="preview-url-bar">
-              <ShieldCheck size={13} className="text-success" />
-              <span>https://hms-erp.app/dashboard</span>
-            </div>
-            <div className="preview-status">
-              <span className="status-indicator"></span> Realtime Live
-            </div>
+        <div className="preview-window-container" id="showcase">
+          {/* Floating Pill Badges */}
+          <div className="floating-badge badge-top-right">
+            <Activity size={14} className="text-primary" />
+            <span>Token #18 Active • OPD Room 102</span>
+          </div>
+          <div className="floating-badge badge-bottom-left">
+            <ShieldCheck size={14} className="text-success" />
+            <span>₹86,400 Today's Collection • 0 Audit Errors</span>
           </div>
 
-          <div className="preview-nav-tabs">
-            <button
-              className={`preview-tab ${activePreviewTab === 'opd' ? 'active' : ''}`}
-              onClick={() => setActivePreviewTab('opd')}
-            >
-              <Stethoscope size={16} /> OPD & Queue
-            </button>
-            <button
-              className={`preview-tab ${activePreviewTab === 'ipd' ? 'active' : ''}`}
-              onClick={() => setActivePreviewTab('ipd')}
-            >
-              <BedDouble size={16} /> IPD Bed Board
-            </button>
-            <button
-              className={`preview-tab ${activePreviewTab === 'pharmacy' ? 'active' : ''}`}
-              onClick={() => setActivePreviewTab('pharmacy')}
-            >
-              <Pill size={16} /> Pharmacy & Stock
-            </button>
-            <button
-              className={`preview-tab ${activePreviewTab === 'lab' ? 'active' : ''}`}
-              onClick={() => setActivePreviewTab('lab')}
-            >
-              <FlaskConical size={16} /> Lab & Pathology
-            </button>
-            <button
-              className={`preview-tab ${activePreviewTab === 'billing' ? 'active' : ''}`}
-              onClick={() => setActivePreviewTab('billing')}
-            >
-              <Receipt size={16} /> Billing & Accounts
-            </button>
-          </div>
-
-          {/* Interactive Screen Content Mockup */}
-          <div className="preview-body">
-            {activePreviewTab === 'opd' && (
-              <div className="preview-screen">
-                <div className="preview-stats-row">
-                  <div className="preview-stat-card">
-                    <span className="stat-label">Today's Visits</span>
-                    <span className="stat-value">48 Patients</span>
-                    <span className="stat-sub text-success">↑ 14% vs yesterday</span>
-                  </div>
-                  <div className="preview-stat-card">
-                    <span className="stat-label">Token Series</span>
-                    <span className="stat-value">Token #18 Active</span>
-                    <span className="stat-sub">Dr. Sharma (OPD 102)</span>
-                  </div>
-                  <div className="preview-stat-card">
-                    <span className="stat-label">Avg Wait Time</span>
-                    <span className="stat-value">12 Mins</span>
-                    <span className="stat-sub text-success">⚡ 60% faster queue</span>
-                  </div>
-                </div>
-
-                <div className="preview-mock-table">
-                  <div className="mock-table-head">
-                    <span>Token</span>
-                    <span>Patient Name</span>
-                    <span>Doctor / Dept</span>
-                    <span>Status</span>
-                    <span>Action</span>
-                  </div>
-                  <div className="mock-table-row">
-                    <span className="token-pill">T-16</span>
-                    <strong>Rajesh Kumar</strong>
-                    <span>Dr. A. K. Sharma (Cardiology)</span>
-                    <span className="badge badge-success">In Consultation</span>
-                    <button className="mock-btn">View Rx</button>
-                  </div>
-                  <div className="mock-table-row">
-                    <span className="token-pill">T-17</span>
-                    <strong>Pooja Verma</strong>
-                    <span>Dr. Neha Gupta (General Medicine)</span>
-                    <span className="badge badge-warning">Waiting in Queue</span>
-                    <button className="mock-btn">Call Token</button>
-                  </div>
-                  <div className="mock-table-row">
-                    <span className="token-pill">T-18</span>
-                    <strong>Amit Patel</strong>
-                    <span>Dr. A. K. Sharma (Cardiology)</span>
-                    <span className="badge badge-info">Registered (QR)</span>
-                    <button className="mock-btn">Start Visit</button>
-                  </div>
-                </div>
+          <div className="preview-window">
+            <div className="preview-header">
+              <div className="window-dots">
+                <span className="dot dot-red"></span>
+                <span className="dot dot-yellow"></span>
+                <span className="dot dot-green"></span>
               </div>
-            )}
+              <div className="preview-url-bar">
+                <ShieldCheck size={13} className="text-success" />
+                <span>https://hms-erp.app/dashboard</span>
+              </div>
+              <div className="preview-status">
+                <span className="status-indicator"></span> Realtime Live
+              </div>
+            </div>
 
-            {activePreviewTab === 'ipd' && (
-              <div className="preview-screen">
-                <div className="preview-stats-row">
-                  <div className="preview-stat-card">
-                    <span className="stat-label">Bed Occupancy</span>
-                    <span className="stat-value">38 / 45 Beds</span>
-                    <span className="stat-sub text-warning">84% Occupied</span>
-                  </div>
-                  <div className="preview-stat-card">
-                    <span className="stat-label">Active Admissions</span>
-                    <span className="stat-value">38 Patients</span>
-                    <span className="stat-sub">General & ICU Wards</span>
-                  </div>
-                  <div className="preview-stat-card">
-                    <span className="stat-label">Pending Discharge</span>
-                    <span className="stat-value">4 Clearances</span>
-                    <span className="stat-sub text-success">Bills Reconciled</span>
-                  </div>
-                </div>
+            <div className="preview-nav-tabs">
+              <button
+                className={`preview-tab ${activePreviewTab === 'opd' ? 'active' : ''}`}
+                onClick={() => setActivePreviewTab('opd')}
+              >
+                <Stethoscope size={16} /> OPD & Queue
+              </button>
+              <button
+                className={`preview-tab ${activePreviewTab === 'ipd' ? 'active' : ''}`}
+                onClick={() => setActivePreviewTab('ipd')}
+              >
+                <BedDouble size={16} /> IPD Bed Board
+              </button>
+              <button
+                className={`preview-tab ${activePreviewTab === 'pharmacy' ? 'active' : ''}`}
+                onClick={() => setActivePreviewTab('pharmacy')}
+              >
+                <Pill size={16} /> Pharmacy & Stock
+              </button>
+              <button
+                className={`preview-tab ${activePreviewTab === 'lab' ? 'active' : ''}`}
+                onClick={() => setActivePreviewTab('lab')}
+              >
+                <FlaskConical size={16} /> Lab & Pathology
+              </button>
+              <button
+                className={`preview-tab ${activePreviewTab === 'billing' ? 'active' : ''}`}
+                onClick={() => setActivePreviewTab('billing')}
+              >
+                <Receipt size={16} /> Billing & Accounts
+              </button>
+            </div>
 
-                <div className="preview-grid-cards">
-                  <div className="ward-card">
-                    <h4>ICU Ward (Bed 101 - 108)</h4>
-                    <div className="bed-badges">
-                      <span className="bed-item occupied">B-101 (Occupied)</span>
-                      <span className="bed-item occupied">B-102 (Occupied)</span>
-                      <span className="bed-item available">B-103 (Available)</span>
-                      <span className="bed-item occupied">B-104 (Occupied)</span>
+            {/* Interactive Screen Content Mockup */}
+            <div className="preview-body">
+              {activePreviewTab === 'opd' && (
+                <div className="preview-screen">
+                  <div className="preview-stats-row">
+                    <div className="preview-stat-card">
+                      <span className="stat-label">Today's OPD Visits</span>
+                      <span className="stat-value">48 Patients</span>
+                      <span className="stat-sub text-success">↑ 14% vs yesterday</span>
+                    </div>
+                    <div className="preview-stat-card">
+                      <span className="stat-label">Token Series</span>
+                      <span className="stat-value">Token #18 Active</span>
+                      <span className="stat-sub">Dr. Sharma (OPD 102)</span>
+                    </div>
+                    <div className="preview-stat-card">
+                      <span className="stat-label">Avg Wait Time</span>
+                      <span className="stat-value">12 Mins</span>
+                      <span className="stat-sub text-success">⚡ 60% faster queue</span>
                     </div>
                   </div>
-                  <div className="ward-card">
-                    <h4>Female General Ward (Bed 201 - 215)</h4>
-                    <div className="bed-badges">
-                      <span className="bed-item occupied">B-201 (Occupied)</span>
-                      <span className="bed-item available">B-202 (Available)</span>
-                      <span className="bed-item available">B-203 (Available)</span>
-                      <span className="bed-item cleaning">B-204 (Cleaning)</span>
+
+                  {/* Interactive Search Bar Filter */}
+                  <div className="preview-search-bar">
+                    <Search size={14} className="text-muted" />
+                    <input
+                      type="text"
+                      placeholder="Search patient, doctor, or token (e.g. Sharma, Rajesh, T-17)..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                    {searchQuery && (
+                      <button className="search-clear-btn" onClick={() => setSearchQuery('')}>
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="preview-mock-table">
+                    <div className="mock-table-head">
+                      <span>Token</span>
+                      <span>Patient Name</span>
+                      <span>Doctor / Dept</span>
+                      <span>Status</span>
+                      <span>Action</span>
+                    </div>
+
+                    {sampleOpdData.length > 0 ? (
+                      sampleOpdData.map((row, idx) => (
+                        <div key={idx} className="mock-table-row">
+                          <span className="token-pill">{row.token}</span>
+                          <strong>{row.name}</strong>
+                          <span>{row.doctor}</span>
+                          <span className={`badge ${row.badgeClass}`}>{row.status}</span>
+                          <button className="mock-btn">{row.action}</button>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="mock-empty-state">
+                        No matching OPD patients found for "{searchQuery}"
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {activePreviewTab === 'ipd' && (
+                <div className="preview-screen">
+                  <div className="preview-stats-row">
+                    <div className="preview-stat-card">
+                      <span className="stat-label">Bed Occupancy</span>
+                      <span className="stat-value">38 / 45 Beds</span>
+                      <span className="stat-sub text-warning">84% Occupied</span>
+                    </div>
+                    <div className="preview-stat-card">
+                      <span className="stat-label">Active Admissions</span>
+                      <span className="stat-value">38 Patients</span>
+                      <span className="stat-sub">General & ICU Wards</span>
+                    </div>
+                    <div className="preview-stat-card">
+                      <span className="stat-label">Pending Discharge</span>
+                      <span className="stat-value">4 Clearances</span>
+                      <span className="stat-sub text-success">Bills Reconciled</span>
+                    </div>
+                  </div>
+
+                  <div className="preview-grid-cards">
+                    <div className="ward-card">
+                      <h4>ICU Ward (Bed 101 - 108)</h4>
+                      <div className="bed-badges">
+                        <span className="bed-item occupied">B-101 (Occupied)</span>
+                        <span className="bed-item occupied">B-102 (Occupied)</span>
+                        <span className="bed-item available">B-103 (Available)</span>
+                        <span className="bed-item occupied">B-104 (Occupied)</span>
+                      </div>
+                    </div>
+                    <div className="ward-card">
+                      <h4>Female General Ward (Bed 201 - 215)</h4>
+                      <div className="bed-badges">
+                        <span className="bed-item occupied">B-201 (Occupied)</span>
+                        <span className="bed-item available">B-202 (Available)</span>
+                        <span className="bed-item available">B-203 (Available)</span>
+                        <span className="bed-item cleaning">B-204 (Cleaning)</span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {activePreviewTab === 'pharmacy' && (
-              <div className="preview-screen">
-                <div className="preview-stats-row">
-                  <div className="preview-stat-card">
-                    <span className="stat-label">Today's Dispensed</span>
-                    <span className="stat-value">₹24,500</span>
-                    <span className="stat-sub">112 Prescriptions</span>
+              {activePreviewTab === 'pharmacy' && (
+                <div className="preview-screen">
+                  <div className="preview-stats-row">
+                    <div className="preview-stat-card">
+                      <span className="stat-label">Today's Dispensed</span>
+                      <span className="stat-value">₹24,500</span>
+                      <span className="stat-sub">112 Prescriptions</span>
+                    </div>
+                    <div className="preview-stat-card">
+                      <span className="stat-label">Low Stock Alert</span>
+                      <span className="stat-value text-danger">3 Medicines</span>
+                      <span className="stat-sub">Below Reorder Level</span>
+                    </div>
+                    <div className="preview-stat-card">
+                      <span className="stat-label">Expiring Soon</span>
+                      <span className="stat-value text-warning">2 Batches</span>
+                      <span className="stat-sub">Within 30 Days</span>
+                    </div>
                   </div>
-                  <div className="preview-stat-card">
-                    <span className="stat-label">Low Stock Alert</span>
-                    <span className="stat-value text-danger">3 Medicines</span>
-                    <span className="stat-sub">Below Reorder Level</span>
-                  </div>
-                  <div className="preview-stat-card">
-                    <span className="stat-label">Expiring Soon</span>
-                    <span className="stat-value text-warning">2 Batches</span>
-                    <span className="stat-sub">Within 30 Days</span>
+
+                  <div className="preview-mock-table">
+                    <div className="mock-table-head">
+                      <span>Medicine Name</span>
+                      <span>Batch No.</span>
+                      <span>Expiry</span>
+                      <span>Stock Qty</span>
+                      <span>Status</span>
+                    </div>
+                    <div className="mock-table-row">
+                      <strong>Paracetamol 650mg</strong>
+                      <span className="font-mono">BATCH-9821</span>
+                      <span>10/2027</span>
+                      <span>450 Strips</span>
+                      <span className="badge badge-success">In Stock</span>
+                    </div>
+                    <div className="mock-table-row">
+                      <strong>Amoxicillin 500mg</strong>
+                      <span className="font-mono">BATCH-4410</span>
+                      <span>12/2026</span>
+                      <span>12 Strips</span>
+                      <span className="badge badge-danger">Low Stock</span>
+                    </div>
                   </div>
                 </div>
+              )}
 
-                <div className="preview-mock-table">
-                  <div className="mock-table-head">
-                    <span>Medicine Name</span>
-                    <span>Batch No.</span>
-                    <span>Expiry</span>
-                    <span>Stock Qty</span>
-                    <span>Status</span>
+              {activePreviewTab === 'lab' && (
+                <div className="preview-screen">
+                  <div className="preview-stats-row">
+                    <div className="preview-stat-card">
+                      <span className="stat-label">Pending Lab Orders</span>
+                      <span className="stat-value">6 Tests</span>
+                      <span className="stat-sub">In Processing</span>
+                    </div>
+                    <div className="preview-stat-card">
+                      <span className="stat-label">Reports Verified</span>
+                      <span className="stat-value text-success">32 Today</span>
+                      <span className="stat-sub">Pathologist Approved</span>
+                    </div>
+                    <div className="preview-stat-card">
+                      <span className="stat-label">A4 Pathology PDF</span>
+                      <span className="stat-value">Single-Click</span>
+                      <span className="stat-sub">Print / Download</span>
+                    </div>
                   </div>
-                  <div className="mock-table-row">
-                    <strong>Paracetamol 650mg</strong>
-                    <span className="font-mono">BATCH-9821</span>
-                    <span>10/2027</span>
-                    <span>450 Strips</span>
-                    <span className="badge badge-success">In Stock</span>
-                  </div>
-                  <div className="mock-table-row">
-                    <strong>Amoxicillin 500mg</strong>
-                    <span className="font-mono">BATCH-4410</span>
-                    <span>12/2026</span>
-                    <span>12 Strips</span>
-                    <span className="badge badge-danger">Low Stock</span>
+
+                  <div className="preview-mock-table">
+                    <div className="mock-table-head">
+                      <span>Order ID</span>
+                      <span>Patient Name</span>
+                      <span>Test Category</span>
+                      <span>Status</span>
+                      <span>PDF Report</span>
+                    </div>
+                    <div className="mock-table-row">
+                      <span className="font-mono">LAB-1092</span>
+                      <strong>Suresh Sharma</strong>
+                      <span>Complete Blood Count (CBC)</span>
+                      <span className="badge badge-success">Result Ready</span>
+                      <button className="mock-btn">Print Report</button>
+                    </div>
+                    <div className="mock-table-row">
+                      <span className="font-mono">LAB-1093</span>
+                      <strong>Ananya Roy</strong>
+                      <span>Thyroid Profile (T3, T4, TSH)</span>
+                      <span className="badge badge-warning">Sample Collected</span>
+                      <button className="mock-btn">Enter Values</button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {activePreviewTab === 'lab' && (
-              <div className="preview-screen">
-                <div className="preview-stats-row">
-                  <div className="preview-stat-card">
-                    <span className="stat-label">Pending Lab Orders</span>
-                    <span className="stat-value">6 Tests</span>
-                    <span className="stat-sub">In Processing</span>
+              {activePreviewTab === 'billing' && (
+                <div className="preview-screen">
+                  <div className="preview-stats-row">
+                    <div className="preview-stat-card">
+                      <span className="stat-label">Today's Collection</span>
+                      <span className="stat-value text-success">₹86,400</span>
+                      <span className="stat-sub">Multi-Mode Ledger</span>
+                    </div>
+                    <div className="preview-stat-card">
+                      <span className="stat-label">UPI / Card Share</span>
+                      <span className="stat-value">68% Digital</span>
+                      <span className="stat-sub">Instant QR Receipt</span>
+                    </div>
+                    <div className="preview-stat-card">
+                      <span className="stat-label">Outstanding Balance</span>
+                      <span className="stat-value text-warning">₹12,200</span>
+                      <span className="stat-sub">4 Invoices</span>
+                    </div>
                   </div>
-                  <div className="preview-stat-card">
-                    <span className="stat-label">Reports Verified</span>
-                    <span className="stat-value text-success">32 Today</span>
-                    <span className="stat-sub">Pathologist Approved</span>
-                  </div>
-                  <div className="preview-stat-card">
-                    <span className="stat-label">A4 Pathology PDF</span>
-                    <span className="stat-value">Single-Click</span>
-                    <span className="stat-sub">Print / Download</span>
+
+                  <div className="preview-mock-table">
+                    <div className="mock-table-head">
+                      <span>Invoice #</span>
+                      <span>Patient</span>
+                      <span>Mode</span>
+                      <span>Total</span>
+                      <span>Payment Status</span>
+                    </div>
+                    <div className="mock-table-row">
+                      <span className="font-mono">INV-2026-084</span>
+                      <strong>Sunita Devi</strong>
+                      <span>UPI (GPay)</span>
+                      <span>₹1,850</span>
+                      <span className="badge badge-success">Paid</span>
+                    </div>
+                    <div className="mock-table-row">
+                      <span className="font-mono">INV-2026-085</span>
+                      <strong>Vikas Malhotra</strong>
+                      <span>Cash</span>
+                      <span>₹3,500</span>
+                      <span className="badge badge-warning">Partially Paid</span>
+                    </div>
                   </div>
                 </div>
-
-                <div className="preview-mock-table">
-                  <div className="mock-table-head">
-                    <span>Order ID</span>
-                    <span>Patient Name</span>
-                    <span>Test Category</span>
-                    <span>Status</span>
-                    <span>PDF Report</span>
-                  </div>
-                  <div className="mock-table-row">
-                    <span className="font-mono">LAB-1092</span>
-                    <strong>Suresh Sharma</strong>
-                    <span>Complete Blood Count (CBC)</span>
-                    <span className="badge badge-success">Result Ready</span>
-                    <button className="mock-btn">Print Report</button>
-                  </div>
-                  <div className="mock-table-row">
-                    <span className="font-mono">LAB-1093</span>
-                    <strong>Ananya Roy</strong>
-                    <span>Thyroid Profile (T3, T4, TSH)</span>
-                    <span className="badge badge-warning">Sample Collected</span>
-                    <button className="mock-btn">Enter Values</button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activePreviewTab === 'billing' && (
-              <div className="preview-screen">
-                <div className="preview-stats-row">
-                  <div className="preview-stat-card">
-                    <span className="stat-label">Today's Collection</span>
-                    <span className="stat-value text-success">₹86,400</span>
-                    <span className="stat-sub">Multi-Mode Ledger</span>
-                  </div>
-                  <div className="preview-stat-card">
-                    <span className="stat-label">UPI / Card Share</span>
-                    <span className="stat-value">68% Digital</span>
-                    <span className="stat-sub">Instant QR Receipt</span>
-                  </div>
-                  <div className="preview-stat-card">
-                    <span className="stat-label">Outstanding Balance</span>
-                    <span className="stat-value text-warning">₹12,200</span>
-                    <span className="stat-sub">4 Invoices</span>
-                  </div>
-                </div>
-
-                <div className="preview-mock-table">
-                  <div className="mock-table-head">
-                    <span>Invoice #</span>
-                    <span>Patient</span>
-                    <span>Mode</span>
-                    <span>Total</span>
-                    <span>Payment Status</span>
-                  </div>
-                  <div className="mock-table-row">
-                    <span className="font-mono">INV-2026-084</span>
-                    <strong>Sunita Devi</strong>
-                    <span>UPI (GPay)</span>
-                    <span>₹1,850</span>
-                    <span className="badge badge-success">Paid</span>
-                  </div>
-                  <div className="mock-table-row">
-                    <span className="font-mono">INV-2026-085</span>
-                    <strong>Vikas Malhotra</strong>
-                    <span>Cash</span>
-                    <span>₹3,500</span>
-                    <span className="badge badge-warning">Partially Paid</span>
-                  </div>
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </section>
@@ -425,10 +465,11 @@ export default function LandingPage() {
           <p>No bloated software. No complex setups. Every module is tailored for Indian clinical workflows.</p>
         </div>
 
-        <div className="features-grid">
-          <div className="feature-card">
+        <div className="bento-grid">
+          {/* Main Large Bento Hero Card */}
+          <div className="bento-card bento-hero">
             <div className="feature-icon icon-blue">
-              <Stethoscope size={24} />
+              <Stethoscope size={28} />
             </div>
             <h3>Smart OPD & QR Queueing</h3>
             <p>Patients scan QR posters on their phone or get instant token slips at reception. Live queue board keeps OPD uncrowded.</p>
@@ -439,7 +480,7 @@ export default function LandingPage() {
             </ul>
           </div>
 
-          <div className="feature-card">
+          <div className="bento-card">
             <div className="feature-icon icon-amber">
               <BedDouble size={24} />
             </div>
@@ -452,7 +493,7 @@ export default function LandingPage() {
             </ul>
           </div>
 
-          <div className="feature-card">
+          <div className="bento-card">
             <div className="feature-icon icon-emerald">
               <Pill size={24} />
             </div>
@@ -465,7 +506,7 @@ export default function LandingPage() {
             </ul>
           </div>
 
-          <div className="feature-card">
+          <div className="bento-card">
             <div className="feature-icon icon-purple">
               <FlaskConical size={24} />
             </div>
@@ -478,7 +519,7 @@ export default function LandingPage() {
             </ul>
           </div>
 
-          <div className="feature-card">
+          <div className="bento-card">
             <div className="feature-icon icon-indigo">
               <Receipt size={24} />
             </div>
@@ -491,7 +532,7 @@ export default function LandingPage() {
             </ul>
           </div>
 
-          <div className="feature-card">
+          <div className="bento-card">
             <div className="feature-icon icon-teal">
               <TrendingUp size={24} />
             </div>
@@ -501,6 +542,45 @@ export default function LandingPage() {
               <li><Check size={14} /> Automatic voucher posting from billing</li>
               <li><Check size={14} /> Doctor revenue-share accruals</li>
               <li><Check size={14} /> Audit log of every financial action</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      {/* Comparison Section: Legacy Systems vs HMS ERP */}
+      <section className="comparison-section" id="comparison">
+        <div className="section-header">
+          <span className="section-badge">Why Healthcare Providers Choose Us</span>
+          <h2>Traditional Paper / Legacy Software vs. HMS ERP Cloud OS</h2>
+          <p>See why modern clinics and hospitals switch to our unified operating system.</p>
+        </div>
+
+        <div className="comparison-grid">
+          <div className="comparison-card legacy-card">
+            <div className="comparison-header">
+              <h3>❌ Legacy / Paper Systems</h3>
+              <span>Traditional Desktop Tools</span>
+            </div>
+            <ul className="comparison-list">
+              <li><X size={16} className="text-danger" /> Crowded OPD waiting rooms with unorganized queues</li>
+              <li><X size={16} className="text-danger" /> Slow paper billing & manual GST calculation errors</li>
+              <li><X size={16} className="text-danger" /> Expired pharmacy stock loss due to manual tracking</li>
+              <li><X size={16} className="text-danger" /> High setup cost & complicated software installations</li>
+              <li><X size={16} className="text-danger" /> Restricted to a single desktop computer in clinic</li>
+            </ul>
+          </div>
+
+          <div className="comparison-card modern-card">
+            <div className="comparison-header">
+              <h3>⚡ HMS ERP Cloud OS</h3>
+              <span className="pill-badge">Next-Gen SaaS</span>
+            </div>
+            <ul className="comparison-list">
+              <li><CheckCircle2 size={16} className="text-success" /> Live QR self-booking & digital token series</li>
+              <li><CheckCircle2 size={16} className="text-success" /> 1-Click A4 GST invoices with UPI QR codes</li>
+              <li><CheckCircle2 size={16} className="text-success" /> Automated FEFO batch stock & expiry alerts</li>
+              <li><CheckCircle2 size={16} className="text-success" /> 100% Instant Cloud Setup (&lt; 5 minutes)</li>
+              <li><CheckCircle2 size={16} className="text-success" /> Accessible securely on Laptop, Tablet, or Smartphone</li>
             </ul>
           </div>
         </div>
