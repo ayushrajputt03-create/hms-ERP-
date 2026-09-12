@@ -1,12 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="NXT">
-  <!-- NXT Eleveta Media mark, reduced for favicon size.
-       The full lockup arcs "ELEVETA MEDIA" over the wordmark; at 16px that
-       arc is a grey smudge, so only the NXT mark survives here. Brand blue
-       and cream are carried over unchanged so the tab still reads as ours. -->
-  <rect width="64" height="64" rx="12" fill="#3B6FC2"/>
-  <text x="32" y="34"
-        text-anchor="middle" dominant-baseline="central"
-        font-family="Georgia, 'Times New Roman', 'Noto Serif', serif"
-        font-weight="700" font-size="25" letter-spacing="-0.5"
-        fill="#F4F0E6">NXT</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="HMS Hospital">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#052659"/>
+      <stop offset="1" stop-color="#0ea5e9"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#g)"/>
+  <polyline points="9,33 21,33 25,33 28,22 32,44 36,33 45,33 49,26 53,40 55,33"
+    fill="none" stroke="#C1E8FF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="49" cy="26" r="3.2" fill="#2CC9F0"/>
 </svg>

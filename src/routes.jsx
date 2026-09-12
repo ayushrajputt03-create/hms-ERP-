@@ -31,7 +31,7 @@ const SlotBookingPage = lazy(() => import('@modules/opd/SlotBookingPage'))
 const AvailabilitySettings = lazy(() => import('@modules/opd/AvailabilitySettings'))
 
 const QRBookingPage = lazy(() => import('@modules/public/QRBookingPage'))
-const LandingPage = lazy(() => import('@modules/public/LandingPage'))
+const LandingPage = lazy(() => import('@modules/landing/LandingPage'))
 
 const PharmacyPage = lazy(() => import('@modules/pharmacy/PharmacyPage'))
 const LabPage = lazy(() => import('@modules/lab/LabPage'))
