@@ -16,6 +16,6 @@
   ],
   "rewrites": [
     { "source": "/super-admin/:path*", "destination": "/index.html" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/((?!.*\\.html$).*)", "destination": "/index.html" }
   ]
 }
