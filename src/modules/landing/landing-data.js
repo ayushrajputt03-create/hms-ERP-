@@ -1,7 +1,6 @@
 import {
-  Activity, Ambulance, BarChart3, BedDouble, Building2, CalendarDays,
-  ClipboardList, Cross, FlaskConical, HeartPulse, Hospital, Lock, Microscope,
-  Pill, Rocket, ShieldCheck, Stethoscope, Users,
+  Activity, BarChart3, BedDouble, CalendarDays, ClipboardList, FlaskConical,
+  HeartPulse, Lock, Microscope, Pill, ShieldCheck, Stethoscope, Users,
 } from 'lucide-react'
 
 export const EASE = [0.22, 1, 0.36, 1]
@@ -17,18 +16,18 @@ export const fadeUp = (y = 26, delay = 0) => ({
 })
 
 export const navLinks = [
-  { label: 'Services', href: '#services' },
+  { label: 'Overview', href: '#services' },
   { label: 'Platform', href: '#platform' },
   { label: 'Why us', href: '#why' },
-  { label: 'Stories', href: '#stories' },
+  { label: 'Use cases', href: '#stories' },
   { label: 'FAQ', href: '#faq' },
 ]
 
 export const stats = [
   { v: 20, suffix: '+', label: 'Connected hospital modules', note: 'One unified workspace' },
-  { v: 12, suffix: 'k+', label: 'Patient records managed', note: 'Across facilities' },
-  { v: 99.9, decimals: 1, suffix: '%', label: 'Reliable uptime', note: 'Cloud infrastructure' },
-  { v: 24, suffix: '/7', label: 'Monitoring & support', note: 'Always on-call' },
+  { v: 1, suffix: '', label: 'Shared patient record', note: 'Across enabled workflows' },
+  { v: 9, suffix: '', label: 'Core clinical & operations areas', note: 'Designed to work together' },
+  { v: 6, suffix: '', label: 'Role-aware workspaces', note: 'Built around your teams' },
 ]
 
 export const problems = [
@@ -69,7 +68,7 @@ export const wards = [
 export const security = [
   { Icon: Lock, t: 'Role-based access', d: 'Every role sees only what it needs.' },
   { Icon: ShieldCheck, t: 'Secure authentication', d: 'Email, Google sign-in & sessions.' },
-  { Icon: ClipboardList, t: 'Audit logs', d: 'Every clinical action is recorded.' },
+  { Icon: ClipboardList, t: 'Audit logs', d: 'Meaningful activity is recorded for review.' },
   { Icon: Activity, t: 'Activity tracking', d: 'Meaningful activity, always traceable.' },
 ]
 
@@ -88,14 +87,14 @@ export const compare = {
 }
 
 export const testimonials = [
-  { q: 'The entire flow is visible, from the first patient touchpoint to billing.', role: 'Operations lead', org: 'Multi-specialty hospital' },
-  { q: 'It brings every team into one clear operational rhythm — no more handoffs.', role: 'Medical superintendent', org: 'City care network' },
-  { q: 'The interface is calm, focused and built around how hospital work actually happens.', role: 'Front desk manager', org: 'Clinic group' },
+  { name: 'Demo scenario', role: 'Front desk workflow', org: 'Illustrative example', q: 'Patient registration, appointment booking and queue visibility stay in one place.' },
+  { name: 'Demo scenario', role: 'Clinical workflow', org: 'Illustrative example', q: 'A shared patient record keeps the care team focused on the next meaningful step.' },
+  { name: 'Demo scenario', role: 'Operations workflow', org: 'Illustrative example', q: 'Admissions, beds, diagnostics and billing can stay connected across departments.' },
 ]
 
 export const faqs = [
-  { q: 'What is HMS Hospital?', a: 'HMS is a connected hospital operating platform that brings core clinical and administrative workflows — patients, OPD, IPD, pharmacy, laboratory and billing — into one system.' },
-  { q: 'Who can use HMS Hospital?', a: 'Hospitals, clinics, diagnostic centers and specialty care centers. Configuration adapts to your enabled modules and operational processes.' },
+  { q: 'What is HMS ERP?', a: 'HMS ERP is a connected hospital operating platform that brings core clinical and administrative workflows — patients, OPD, IPD, pharmacy, laboratory and billing — into one system.' },
+  { q: 'Who can use HMS ERP?', a: 'Hospitals, clinics, diagnostic centers and specialty care centers. Configuration adapts to your enabled modules and operational processes.' },
   { q: 'Does it support multiple departments?', a: 'Yes. Every department runs on the same patient record, so handoffs between departments disappear.' },
   { q: 'Can roles and permissions be customized?', a: 'Role-based access is built in, from facility admin to billing staff, with audit trails on meaningful activity.' },
   { q: 'Does it support OPD and IPD?', a: 'Both. OPD covers appointments and consultations; IPD covers admissions, wards, beds and discharge.' },
@@ -103,24 +102,19 @@ export const faqs = [
 ]
 
 export const footerCols = [
-  ['Product', ['Platform', 'Features', 'Modules', 'Pricing']],
-  ['Company', ['About', 'Careers', 'Contact', 'Partners']],
-  ['Resources', ['Blog', 'Docs', 'Support', 'Status']],
+  ['Product', [['Platform', '#platform'], ['Product tour', '#tour'], ['Pricing', '#pricing']]],
+  ['Explore', [['Why HMS', '#why'], ['Workflows', '#operations'], ['Questions', '#faq'], ['Security', '/security']]],
 ]
 
 export const trustLogos = [
-  { Icon: Building2, n: 'CityCare Group' },
-  { Icon: Hospital, n: 'Apollo North' },
-  { Icon: HeartPulse, n: 'LifeBridge' },
-  { Icon: Microscope, n: 'MediLab TPA' },
-  { Icon: Ambulance, n: 'SwiftCare' },
-  { Icon: Cross, n: 'Sanjeevani' },
+  { Icon: HeartPulse, n: 'Hospitals' }, { Icon: Stethoscope, n: 'Clinics' },
+  { Icon: Microscope, n: 'Diagnostic centers' }, { Icon: BedDouble, n: 'Specialty care' },
 ]
 
 export const pricing = [
-  { name: 'Starter', tagline: 'For clinics & small practices', price: '₹9,999', unit: '/month', features: ['Up to 10 staff members', '1 facility', 'Patients & OPD workflows', 'Billing & payment receipts', 'Email support'] },
-  { name: 'Growth', tagline: 'For growing hospitals & groups', price: '₹24,999', unit: '/month', featured: true, badge: 'Most popular', features: ['Up to 100 staff members', 'Unlimited facilities', 'OPD + IPD + live bed board', 'Pharmacy & laboratory', 'Reports & audit logs', 'Priority support'] },
-  { name: 'Enterprise', tagline: 'For multi-specialty & networks', price: 'Custom', unit: '', features: ['Unlimited staff & facilities', 'Network-wise dashboards', 'Custom modules & integrations', 'Dedicated account manager', 'Onboarding, training & SLA'] },
+  { name: 'Essentials', tagline: 'For clinics & focused teams', price: 'Talk to us', unit: '', features: ['Patients & OPD workflows', 'Billing & payment receipts', 'Role-based workspaces', 'Guided implementation'] },
+  { name: 'Hospital', tagline: 'For connected care operations', price: 'Tailored', unit: '', featured: true, badge: 'Recommended', features: ['OPD + IPD + bed board', 'Pharmacy & laboratory', 'Reports & audit logs', 'Department rollout planning'] },
+  { name: 'Network', tagline: 'For multi-site organizations', price: 'Custom', unit: '', features: ['Multi-facility configuration', 'Custom workflow planning', 'Implementation support', 'Commercial terms on request'] },
 ]
 
-export const pricingNote = 'Every plan is cloud-hosted, includes free onboarding setup, and has no long-term lock-in.'
+export const pricingNote = 'Every facility is different. We will recommend the right modules and rollout plan after a walkthrough.'

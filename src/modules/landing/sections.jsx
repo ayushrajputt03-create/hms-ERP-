@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence, useScroll, useTransform, useSpring, useMotionValue, useReducedMotion } from 'motion/react'
-import { Activity, ArrowRight, ArrowUpRight, Bell, Check, ChevronDown, ShieldCheck } from 'lucide-react'
+import { Activity, ArrowRight, ArrowUpRight, BedDouble, Bell, Check, ChevronDown, ShieldCheck, Stethoscope, Users } from 'lucide-react'
 import { EASE, SPRING, SPRING_LIGHT, VIEWPORT, modules, stats, problems, journey, wards, security, roles, compare, testimonials, faqs, pricing, pricingNote, trustLogos } from './landing-data'
 import { Reveal, Eyebrow, SectionHead, Counter, Magnetic } from './primitives'
 
@@ -23,15 +23,15 @@ function ProductUI({ active }) {
   const names = ['Aarav', 'Mira', 'Kabir']
   const states = [['Registered', 'In queue', 'In consultation'], ['Checked in', 'Waiting', 'Consulting'], ['Admitted', 'Stable', 'Discharge due'], ['Preparing', 'Ready', 'Dispensed'], ['Sample in lab', 'Processing', 'Report ready'], ['Draft', 'Generated', 'Paid']]
   return (
-    <div className="product-ui">
-      <aside>
+    <div className="product-ui" role="img" aria-label={`${m.n} workspace preview`}>
+      <aside aria-hidden="true">
         <div className="ui-brand"><span><Activity size={15} /></span>HMS</div>
         {modules.map((mod, i) => <div className={i === active ? 'side-active' : ''} key={mod.n}>{mod.n}</div>)}
       </aside>
       <main>
         <div className="ui-top"><i className="live-dot" /><b>{m.n}</b><span> Operational workspace</span><div className="ui-search">⌕ Search records</div><Bell size={14} /><em>DEMO</em></div>
         <div className="ui-content">
-          <div className="ui-title"><div><small>{m.n.toUpperCase()}</small><h3>{active === 0 ? 'Today at a glance' : `${m.n} workspace`}</h3></div><button>+ New record</button></div>
+          <div className="ui-title"><div><small>{m.n.toUpperCase()}</small><h3>{active === 0 ? 'Today at a glance' : `${m.n} workspace`}</h3></div><span className="ui-new-record">+ New record</span></div>
           <div className="ui-stats">
             <div className="metric"><Counter to={active === 4 ? 48 : 128} /><span>{active === 4 ? 'Samples today' : 'Patients today'}</span><small>+12.5%</small></div>
             <div className="metric"><Counter to={active === 2 ? 34 : 24} /><span>{active === 2 ? 'Occupied beds' : 'Appointments'}</span><small>Live</small></div>
@@ -76,13 +76,13 @@ export function Hero({ loading, onDemo }) {
       <div className="ecg-bg"><EcgLine /></div>
       <div className="hero-grid">
         <motion.div className="hero-copy" style={{ y: yCopy }}>
-          <Eyebrow><span className="pulse-dot" />Next-generation hospital management</Eyebrow>
+          <Eyebrow><span className="pulse-dot" />Hospital operations, connected</Eyebrow>
           <h1>
-            <motion.span className="line" animate={loading ? { opacity: 0, y: 30 } : { opacity: 1, y: 0 }} transition={{ delay: 0.15, duration: 0.9, ease: EASE }}>Care, without</motion.span>
-            <motion.span className="line grad" animate={loading ? { opacity: 0, y: 30 } : { opacity: 1, y: 0 }} transition={{ delay: 0.26, duration: 0.9, ease: EASE }}>the chaos.</motion.span>
-            <motion.span className="line" animate={loading ? { opacity: 0, y: 30 } : { opacity: 1, y: 0 }} transition={{ delay: 0.37, duration: 0.9, ease: EASE }}>Every patient. Every department.</motion.span>
+            <motion.span className="line" animate={loading ? { opacity: 0, y: 30 } : { opacity: 1, y: 0 }} transition={{ delay: 0.08, duration: 0.7, ease: EASE }}>Your entire</motion.span>
+            <motion.span className="line" animate={loading ? { opacity: 0, y: 30 } : { opacity: 1, y: 0 }} transition={{ delay: 0.17, duration: 0.7, ease: EASE }}>hospital.</motion.span>
+            <motion.span className="line grad" animate={loading ? { opacity: 0, y: 30 } : { opacity: 1, y: 0 }} transition={{ delay: 0.26, duration: 0.7, ease: EASE }}>One clear view.</motion.span>
           </h1>
-          <motion.p animate={loading ? { opacity: 0, y: 20 } : { opacity: 1, y: 0 }} transition={{ delay: 0.5, duration: 0.8, ease: EASE }}>HMS brings your entire hospital — patients, OPD & IPD, pharmacy, laboratory and billing — into one calm, connected platform built for modern care.</motion.p>
+          <motion.p animate={loading ? { opacity: 0, y: 20 } : { opacity: 1, y: 0 }} transition={{ delay: 0.34, duration: 0.7, ease: EASE }}>From registration to discharge, give every team the context they need. Patients, OPD, IPD, pharmacy, lab and billing — connected in one hospital workspace.</motion.p>
           <motion.div className="hero-buttons" animate={loading ? { opacity: 0, y: 20 } : { opacity: 1, y: 0 }} transition={{ delay: 0.62, duration: 0.8, ease: EASE }}>
             <Magnetic className="mag-b"><a className="btn primary big" href="#cta" onClick={(e) => { e.preventDefault(); onDemo() }}>Book a demo <ArrowRight size={17} /></a></Magnetic>
             <Magnetic className="mag-b"><a className="btn ghost big" href="#platform">Explore the platform</a></Magnetic>
@@ -94,9 +94,10 @@ export function Hero({ loading, onDemo }) {
         <motion.div className="hero-visual" style={{ y: yMock }} animate={loading ? { opacity: 0, y: 40, scale: 0.95 } : { opacity: 1, y: 0, scale: 1 }} transition={{ delay: 0.45, duration: 1, ease: EASE }}>
           <div className="vis-rings" />
           <Tilt><ProductUI active={0} /></Tilt>
-          <motion.div className="float-card f1" animate={{ y: [0, -12, 0] }} transition={{ duration: 5.5, repeat: Infinity, ease: EASE }}><b><Counter to={128} /></b><span>Patients today</span></motion.div>
-          <motion.div className="float-card f2" animate={{ y: [0, -14, 0] }} transition={{ duration: 6.2, repeat: Infinity, ease: EASE, delay: 0.8 }}><i>Bed occupancy</i><b><Counter to={92} suffix="%" /></b></motion.div>
-          <motion.div className="float-card f3" animate={{ y: [0, -10, 0] }} transition={{ duration: 5, repeat: Infinity, ease: EASE, delay: 1.4 }}><i>Collections today</i><b>₹4.6L</b></motion.div>
+          <div className="hero-preview-label"><span />Product preview · Sample data</div>
+          <motion.div className="float-card f1" initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 1, duration: .5, ease: EASE }}><b><Counter to={128} /></b><span>Patients today</span></motion.div>
+          <motion.div className="float-card f2" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 1.12, duration: .5, ease: EASE }}><i>Bed occupancy</i><b><Counter to={92} suffix="%" /></b></motion.div>
+          <motion.div className="float-card f3" initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 1.24, duration: .5, ease: EASE }}><i>Collections today</i><b>₹4.6L</b></motion.div>
         </motion.div>
       </div>
       <motion.a className="scroll-hint" href="#stats" initial={{ opacity: 0 }} animate={loading ? {} : { opacity: 1 }} transition={{ delay: 1.2 }}><span>Scroll to explore</span><i><ChevronDown size={16} /></i></motion.a>
@@ -105,10 +106,11 @@ export function Hero({ loading, onDemo }) {
 }
 
 export function Marquee() {
+  const workflows = ['Patient records', 'Outpatient', 'Inpatient', 'Pharmacy', 'Laboratory', 'Billing', 'Reports']
   return (
     <div className="marquee" aria-hidden="true">
       <div className="marquee-track">
-        {[...['Outpatient', 'Inpatient', 'Pharmacy', 'Laboratory', 'Emergency', 'Diagnostics', 'Ward Management', 'Billing', 'Telemedicine', 'Ambulance'], ...['Outpatient', 'Inpatient', 'Pharmacy', 'Laboratory', 'Emergency', 'Diagnostics', 'Ward Management', 'Billing', 'Telemedicine', 'Ambulance'], ...['Outpatient', 'Inpatient', 'Pharmacy', 'Laboratory', 'Emergency', 'Diagnostics', 'Ward Management', 'Billing', 'Telemedicine', 'Ambulance']].map((t, i) => <span key={i}>{t}<i>+</i></span>)}
+        {Array.from({ length: 3 }, () => workflows).flat().map((t, i) => <span key={i}>{t}<i>+</i></span>)}
       </div>
     </div>
   )
@@ -131,7 +133,7 @@ export function Stats() {
 export function Trust() {
   return (
     <section className="trust">
-      <Reveal className="trust-label" y={12}>Trusted by modern care teams across the region</Reveal>
+      <Reveal className="trust-label" y={12}>Designed for the full spectrum of healthcare operations</Reveal>
       <div className="trust-row">
         {trustLogos.map((t, i) => (
           <Reveal key={t.n} delay={i * 0.05} className="trust-logo"><t.Icon size={20} /><span>{t.n}</span></Reveal>
@@ -272,7 +274,7 @@ export function Compare() {
       <SectionHead eyebrow="A better operating model" title="Less administration. More healthcare." />
       <div className="compare-grid">
         <Reveal className="panel"><div className="panel-tag">TRADITIONAL</div><h3>Disconnected by default.</h3>{compare.traditional.map((x) => <p key={x}><i>—</i>{x}</p>)}</Reveal>
-        <Reveal delay={0.12} className="panel better"><div className="panel-tag">HMS HOSPITAL</div><h3>Connected by design.</h3>{compare.hms.map((x) => <p key={x}><Check size={15} />{x}</p>)}</Reveal>
+        <Reveal delay={0.12} className="panel better"><div className="panel-tag">HMS ERP</div><h3>Connected by design.</h3>{compare.hms.map((x) => <p key={x}><Check size={15} />{x}</p>)}</Reveal>
       </div>
     </section>
   )
@@ -297,7 +299,7 @@ export function Pricing({ onDemo }) {
           </Reveal>
         ))}
       </div>
-      <Reveal delay={0.2} className="price-note"><ShieldCheck size={15} />Free onboarding · No setup fees · Cancel anytime</Reveal>
+      <Reveal delay={0.2} className="price-note"><ShieldCheck size={15} />Implementation scope and commercial terms are confirmed after your walkthrough.</Reveal>
     </section>
   )
 }
@@ -309,18 +311,24 @@ export function Testimonials() {
     return () => clearInterval(t)
   }, [])
   const t = testimonials[i]
+  const initials = t.name.split(' ').map((n) => n[0]).join('')
   return (
-    <section className="testimonials" id="stories">
+    <section className="testimonials" id="stories" aria-label="Illustrative workflow scenarios">
       <SectionHead eyebrow="Built for real operations" title="Designed for the people who keep care moving." />
       <Reveal className="t-card" delay={0.1}>
         <AnimatePresence mode="wait">
           <motion.blockquote key={i} initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -18 }} transition={{ duration: 0.5, ease: EASE }}>
-            <span className="qmark">“</span>
-            <p>{t.q}</p>
-            <footer>{t.role}, <em>{t.org}</em></footer>
+            <span className="qmark" aria-hidden="true">“</span>
+            <p>{t.q}</p><small className="demo-disclosure">Illustrative workflow scenario — not a customer testimonial.</small>
+            <footer>
+              <span className="t-avatar" aria-hidden="true">{initials}</span>
+              <span className="t-meta"><b>{t.name}</b><em>{t.role}, {t.org}</em></span>
+            </footer>
           </motion.blockquote>
         </AnimatePresence>
-        <div className="t-dots">{testimonials.map((_, d) => <button key={d} className={d === i ? 'on' : ''} onClick={() => setI(d)}><span /></button>)}</div>
+        <div className="t-dots" role="group" aria-label="Choose workflow scenario">
+          {testimonials.map((_, d) => <button key={d} className={d === i ? 'on' : ''} onClick={() => setI(d)} aria-label={`Show scenario ${d + 1}`} aria-current={d === i ? 'true' : undefined}><span /></button>)}
+        </div>
       </Reveal>
     </section>
   )
@@ -334,10 +342,10 @@ export function FAQ() {
       <div className="faq-list">
         {faqs.map((f, i) => (
           <Reveal key={f.q} delay={i * 0.05}>
-            <div className={`faq-item ${open === i ? 'open' : ''}`} role="button" tabIndex={0} aria-expanded={open === i} onClick={() => setOpen(open === i ? null : i)} onKeyDown={(e) => e.key === 'Enter' && setOpen(open === i ? null : i)}>
+            <button type="button" className={`faq-item ${open === i ? 'open' : ''}`} aria-expanded={open === i} aria-controls={`faq-panel-${i}`} onClick={() => setOpen(open === i ? null : i)}>
               <span><b>{String(i + 1).padStart(2, '0')}</b>{f.q}<ChevronDown size={17} /></span>
-              <AnimatePresence initial={false}>{open === i && <motion.p initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.35, ease: EASE }}>{f.a}</motion.p>}</AnimatePresence>
-            </div>
+              <AnimatePresence initial={false}>{open === i && <motion.p id={`faq-panel-${i}`} initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.35, ease: EASE }}>{f.a}</motion.p>}</AnimatePresence>
+            </button>
           </Reveal>
         ))}
       </div>
@@ -354,11 +362,36 @@ export function CTA({ onDemo }) {
       <Reveal className="cta-inner">
         <Eyebrow>The operating system for modern healthcare</Eyebrow>
         <h2>One platform. Every department.<br /><span className="grad-light">Complete visibility.</span></h2>
-        <p>Modernize your hospital operations with HMS. See it live on your own setup — free, no commitment.</p>
+        <p>See how HMS ERP can fit your facility’s workflows. Walk through the platform with our team.</p>
         <div className="cta-buttons">
           <Magnetic className="mag-b"><a className="btn primary big" href="#cta" onClick={(e) => { e.preventDefault(); onDemo() }}>Book a demo <ArrowRight size={17} /></a></Magnetic>
           <Magnetic className="mag-b"><a className="btn ghost-light" href="#platform">Explore the platform</a></Magnetic>
         </div>
+      </Reveal>
+    </section>
+  )
+}
+
+export function CommandCenter({ onDemo }) {
+  const [active, setActive] = useState('frontdesk')
+  const views = {
+    frontdesk: { tab: 'Front desk', icon: Users, number: '128', metric: 'patients processed today', title: 'Patient flow', events: [['08:42', 'Registration completed', 'Front desk'], ['09:05', 'Appointment confirmed', 'OPD'], ['09:18', 'Patient checked in', 'Queue']] },
+    clinical: { tab: 'Clinical', icon: Stethoscope, number: '24', metric: 'consultations scheduled', title: 'Clinical workflow', events: [['09:10', 'Vitals recorded', 'Nursing'], ['09:22', 'Consultation in progress', 'OPD'], ['09:35', 'Prescription issued', 'Doctor']] },
+    operations: { tab: 'Operations', icon: BedDouble, number: '92%', metric: 'current bed occupancy', title: 'Facility operations', events: [['08:55', 'Bed released', 'General ward'], ['09:12', 'Admission initiated', 'IPD'], ['09:27', 'Transfer requested', 'ICU']] },
+  }
+  const item = views[active], Icon = item.icon
+  return (
+    <section className="command-center" id="tour" aria-label="Interactive product tour">
+      <div className="command-intro"><Eyebrow>Interactive product tour</Eyebrow><Reveal delay={0.05}><h2>See the day from every angle.</h2></Reveal><Reveal delay={0.12}><p>Each team sees the same hospital operation through the workspace that makes their work clear.</p></Reveal><div className="command-tabs" role="tablist" aria-label="Workspace preview">{Object.entries(views).map(([key, view]) => <button id={`command-tab-${key}`} type="button" role="tab" aria-controls="command-panel" aria-selected={active === key} tabIndex={active === key ? 0 : -1} className={active === key ? 'active' : ''} onClick={() => setActive(key)} onKeyDown={(event) => { const keys = Object.keys(views); const index = keys.indexOf(key); const next = event.key === 'ArrowRight' ? keys[(index + 1) % keys.length] : event.key === 'ArrowLeft' ? keys[(index - 1 + keys.length) % keys.length] : null; if (next) { event.preventDefault(); setActive(next); document.getElementById(`command-tab-${next}`)?.focus() } }} key={key}>{view.tab}</button>)}</div></div>
+      <Reveal className="command-card" delay={0.12} id="command-panel" role="tabpanel" aria-labelledby={`command-tab-${active}`}>
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div key={active} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.24, ease: EASE }}>
+            <div className="command-top"><span><Icon size={17} />{item.tab} workspace</span><small>SAMPLE DATA</small></div>
+            <div className="command-number"><div><span>{item.title}</span><b>{item.number}</b><small>{item.metric}</small></div><div className="command-bars">{[35, 58, 46, 72, 60, 88, 74, 100].map((h, i) => <i key={i} style={{ height: `${h}%` }} />)}</div></div>
+            <div className="command-events">{item.events.map(([time, title, team], i) => <div key={title}><time>{time}</time><i className={i === 1 ? 'current' : ''} /><span><b>{title}</b><small>{team}</small></span></div>)}</div>
+            <button type="button" className="command-btn" onClick={onDemo}>See HMS in action <ArrowUpRight size={15} /></button>
+          </motion.div>
+        </AnimatePresence>
       </Reveal>
     </section>
   )

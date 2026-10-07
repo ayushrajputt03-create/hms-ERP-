@@ -39,6 +39,7 @@ const BillingPage = lazy(() => import('@modules/billing/BillingPage'))
 const InvoiceView = lazy(() => import('@modules/billing/InvoiceView'))
 const ReportsPage = lazy(() => import('@modules/reports/ReportsPage'))
 const AccountsPage = lazy(() => import('@modules/accounts/AccountsPage'))
+const LegalPage = lazy(() => import('@modules/public/LegalPage'))
 
 const IPDPage = lazy(() => import('@modules/ipd/IPDPage'))
 const AdmissionForm = lazy(() => import('@modules/ipd/AdmissionForm'))
@@ -75,6 +76,9 @@ export default function AppRoutes() {
     <Suspense fallback={<Loader />}>
       <Routes>
         <Route path="/landing" element={<LandingPage />} />
+        <Route path="/privacy" element={<LegalPage />} />
+        <Route path="/terms" element={<LegalPage />} />
+        <Route path="/security" element={<LegalPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
