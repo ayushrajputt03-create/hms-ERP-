@@ -13,7 +13,7 @@ function MockChart() {
       <path d="M0 76 C28 70,44 74,62 60 S102 64,124 46 S156 58,176 38 S210 52,238 26 S286 30,320 10 V88 H0Z" fill="url(#mgr)" />
       <motion.path d="M0 76 C28 70,44 74,62 60 S102 64,124 46 S156 58,176 38 S210 52,238 26 S286 30,320 10" fill="none" stroke="#0ea5e9" strokeWidth="2.5"
         initial={{ pathLength: 0 }} whileInView={{ pathLength: 1 }} viewport={{ once: true }} transition={{ duration: 2.2, ease: EASE }} />
-      <motion.circle cx="238" cy="26" r="3.5" fill="#ff5e7e" initial={{ scale: 0 }} whileInView={{ scale: [0, 1.6, 1] }} viewport={{ once: true }} transition={{ delay: 2, duration: 0.5, ease: EASE }} />
+      <motion.circle cx="238" cy="26" r="3.5" fill="#c18a45" initial={{ scale: 0 }} whileInView={{ scale: [0, 1.6, 1] }} viewport={{ once: true }} transition={{ delay: 2, duration: 0.5, ease: EASE }} />
     </svg>
   )
 }
@@ -73,7 +73,6 @@ export function Hero({ loading, onDemo }) {
       <motion.div className="orb o2" style={{ y: yOrbs }} />
       <motion.div className="orb o3" style={{ y: yOrbs }} />
       <div className="grid-bg" />
-      <div className="ecg-bg"><EcgLine /></div>
       <div className="hero-grid">
         <motion.div className="hero-copy" style={{ y: yCopy }}>
           <Eyebrow><span className="pulse-dot" />Hospital operations, connected</Eyebrow>
@@ -87,17 +86,19 @@ export function Hero({ loading, onDemo }) {
             <Magnetic className="mag-b"><a className="btn primary big" href="#cta" onClick={(e) => { e.preventDefault(); onDemo() }}>Book a demo <ArrowRight size={17} /></a></Magnetic>
             <Magnetic className="mag-b"><a className="btn ghost big" href="#platform">Explore the platform</a></Magnetic>
           </motion.div>
-          <motion.div className="proof" animate={loading ? { opacity: 0 } : { opacity: 1 }} transition={{ delay: 0.78, duration: 0.8 }}>
-            {['Cloud ready', 'Role-based access', 'Real-time operations'].map((t) => <span key={t}><Check size={14} />{t}</span>)}
+          <motion.div className="hero-flow" animate={loading ? { opacity: 0, y: 8 } : { opacity: 1, y: 0 }} transition={{ delay: 0.72, duration: 0.65, ease: EASE }}>
+            <span className="hero-flow-label">One shared patient record</span>
+            <div className="hero-flow-steps" aria-label="Registration, consultation and billing stay connected">
+              <span><b>01</b> Registration</span><i aria-hidden="true" />
+              <span><b>02</b> Consultation</span><i aria-hidden="true" />
+              <span><b>03</b> Billing</span>
+            </div>
           </motion.div>
         </motion.div>
         <motion.div className="hero-visual" style={{ y: yMock }} animate={loading ? { opacity: 0, y: 40, scale: 0.95 } : { opacity: 1, y: 0, scale: 1 }} transition={{ delay: 0.45, duration: 1, ease: EASE }}>
-          <div className="vis-rings" />
           <Tilt><ProductUI active={0} /></Tilt>
+          <motion.div className="handoff-note" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1, duration: .55, ease: EASE }}><span><Check size={15} /></span><div><b>Record available</b><small>Front desk → consultation</small></div></motion.div>
           <div className="hero-preview-label"><span />Product preview · Sample data</div>
-          <motion.div className="float-card f1" initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 1, duration: .5, ease: EASE }}><b><Counter to={128} /></b><span>Patients today</span></motion.div>
-          <motion.div className="float-card f2" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 1.12, duration: .5, ease: EASE }}><i>Bed occupancy</i><b><Counter to={92} suffix="%" /></b></motion.div>
-          <motion.div className="float-card f3" initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 1.24, duration: .5, ease: EASE }}><i>Collections today</i><b>₹4.6L</b></motion.div>
         </motion.div>
       </div>
       <motion.a className="scroll-hint" href="#stats" initial={{ opacity: 0 }} animate={loading ? {} : { opacity: 1 }} transition={{ delay: 1.2 }}><span>Scroll to explore</span><i><ChevronDown size={16} /></i></motion.a>
