@@ -65,40 +65,34 @@ function EcgLine() {
 export function Hero({ loading, onDemo }) {
   const ref = useRef(null), { scrollYProgress } = useScroll({ target: ref, offset: ['start start', 'end start'] })
   const yOrbs = useTransform(scrollYProgress, [0, 1], [0, 160])
-  const yCopy = useTransform(scrollYProgress, [0, 1], [0, 90])
   const yMock = useTransform(scrollYProgress, [0, 1], [0, -60])
   return (
-    <section className="hero" id="services" ref={ref}>
+    <section className="hero ref-hero" id="services" ref={ref}>
       <motion.div className="orb o1" style={{ y: yOrbs }} />
       <motion.div className="orb o2" style={{ y: yOrbs }} />
       <motion.div className="orb o3" style={{ y: yOrbs }} />
       <div className="grid-bg" />
-      <div className="hero-grid">
-        <motion.div className="hero-copy" style={{ y: yCopy }}>
-          <Eyebrow><span className="pulse-dot" />Hospital operations, connected</Eyebrow>
-          <h1>
-            <motion.span className="line" animate={loading ? { opacity: 0, y: 30 } : { opacity: 1, y: 0 }} transition={{ delay: 0.08, duration: 0.7, ease: EASE }}>Your entire</motion.span>
-            <motion.span className="line" animate={loading ? { opacity: 0, y: 30 } : { opacity: 1, y: 0 }} transition={{ delay: 0.17, duration: 0.7, ease: EASE }}>hospital.</motion.span>
-            <motion.span className="line grad" animate={loading ? { opacity: 0, y: 30 } : { opacity: 1, y: 0 }} transition={{ delay: 0.26, duration: 0.7, ease: EASE }}>One clear view.</motion.span>
-          </h1>
-          <motion.p animate={loading ? { opacity: 0, y: 20 } : { opacity: 1, y: 0 }} transition={{ delay: 0.34, duration: 0.7, ease: EASE }}>From registration to discharge, give every team the context they need. Patients, OPD, IPD, pharmacy, lab and billing — connected in one hospital workspace.</motion.p>
-          <motion.div className="hero-buttons" animate={loading ? { opacity: 0, y: 20 } : { opacity: 1, y: 0 }} transition={{ delay: 0.62, duration: 0.8, ease: EASE }}>
-            <Magnetic className="mag-b"><a className="btn primary big" href="#cta" onClick={(e) => { e.preventDefault(); onDemo() }}>Book a demo <ArrowRight size={17} /></a></Magnetic>
-            <Magnetic className="mag-b"><a className="btn ghost big" href="#platform">Explore the platform</a></Magnetic>
-          </motion.div>
-          <motion.div className="hero-flow" animate={loading ? { opacity: 0, y: 8 } : { opacity: 1, y: 0 }} transition={{ delay: 0.72, duration: 0.65, ease: EASE }}>
-            <span className="hero-flow-label">One shared patient record</span>
-            <div className="hero-flow-steps" aria-label="Registration, consultation and billing stay connected">
-              <span><b>01</b> Registration</span><i aria-hidden="true" />
-              <span><b>02</b> Consultation</span><i aria-hidden="true" />
-              <span><b>03</b> Billing</span>
-            </div>
-          </motion.div>
-        </motion.div>
-        <motion.div className="hero-visual" style={{ y: yMock }} animate={loading ? { opacity: 0, y: 40, scale: 0.95 } : { opacity: 1, y: 0, scale: 1 }} transition={{ delay: 0.45, duration: 1, ease: EASE }}>
+      <motion.div className="hero-kicker" animate={loading ? { opacity: 0, y: -14 } : { opacity: 1, y: 0 }} transition={{ duration: .6, ease: EASE }}>
+        <span><i className="pulse-dot" />Built for everyday hospital operations</span>
+        <span>Cloud-ready · Role-aware · Connected</span>
+      </motion.div>
+      <div className="hero-title-wrap" aria-label="HMS ERP — one clear view">
+        <motion.h1 animate={loading ? { opacity: 0, y: 70 } : { opacity: 1, y: 0 }} transition={{ delay: .08, duration: .9, ease: EASE }}>HMS ERP</motion.h1>
+        <motion.p animate={loading ? { opacity: 0 } : { opacity: 1 }} transition={{ delay: .5, duration: .7 }}>One clear view.</motion.p>
+      </div>
+      <motion.div className="hero-visual ref-hero-visual" style={{ y: yMock }} animate={loading ? { opacity: 0, y: 45, scale: .94 } : { opacity: 1, y: 0, scale: 1 }} transition={{ delay: .38, duration: 1, ease: EASE }}>
           <Tilt><ProductUI active={0} /></Tilt>
           <motion.div className="handoff-note" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1, duration: .55, ease: EASE }}><span><Check size={15} /></span><div><b>Record available</b><small>Front desk → consultation</small></div></motion.div>
           <div className="hero-preview-label"><span />Product preview · Sample data</div>
+      </motion.div>
+      <div className="hero-bottom">
+        <motion.div className="hero-bottom-copy" animate={loading ? { opacity: 0, y: 22 } : { opacity: 1, y: 0 }} transition={{ delay: .58, duration: .75, ease: EASE }}>
+          <small>The operating system for modern healthcare</small>
+          <p>Patients, OPD, IPD, pharmacy, lab and billing—connected around one shared patient record.</p>
+        </motion.div>
+        <motion.div className="hero-buttons" animate={loading ? { opacity: 0, y: 22 } : { opacity: 1, y: 0 }} transition={{ delay: .68, duration: .75, ease: EASE }}>
+          <Magnetic className="mag-b"><a className="btn primary big" href="#cta" onClick={(e) => { e.preventDefault(); onDemo() }}>Book a demo <ArrowRight size={17} /></a></Magnetic>
+          <Magnetic className="mag-b"><a className="btn ghost big" href="#platform">Explore platform</a></Magnetic>
         </motion.div>
       </div>
       <motion.a className="scroll-hint" href="#stats" initial={{ opacity: 0 }} animate={loading ? {} : { opacity: 1 }} transition={{ delay: 1.2 }}><span>Scroll to explore</span><i><ChevronDown size={16} /></i></motion.a>
@@ -107,13 +101,23 @@ export function Hero({ loading, onDemo }) {
 }
 
 export function Marquee() {
-  const workflows = ['Patient records', 'Outpatient', 'Inpatient', 'Pharmacy', 'Laboratory', 'Billing', 'Reports']
+  const workflows = [
+    ['Patient records', '128', 'registered today'], ['OPD queue', '24', 'appointments'],
+    ['Bed board', '92%', 'occupancy'], ['Laboratory', '48', 'samples today'],
+    ['Pharmacy', '12', 'low-stock alerts'], ['Billing', '₹2.8L', 'daily collection'],
+  ]
+  const rows = [workflows, [...workflows].reverse()]
   return (
-    <div className="marquee" aria-hidden="true">
-      <div className="marquee-track">
-        {Array.from({ length: 3 }, () => workflows).flat().map((t, i) => <span key={i}>{t}<i>+</i></span>)}
-      </div>
-    </div>
+    <section className="workflow-reel" aria-label="Connected HMS ERP workflows">
+      <div className="reel-heading"><span>One system</span><p>Every department sees the same operation—clearly, securely and in real time.</p></div>
+      {rows.map((row, rowIndex) => <div className={`reel-row row-${rowIndex + 1}`} key={rowIndex}><div className="reel-track">
+        {Array.from({ length: 3 }, () => row).flat().map(([name, value, label], i) => <article className="reel-card" key={`${rowIndex}-${i}`} aria-hidden={i >= row.length}>
+          <div className="reel-card-top"><span><Activity size={14} />HMS ERP</span><small>LIVE VIEW</small></div>
+          <div className="reel-card-body"><em>{String((i % row.length) + 1).padStart(2, '0')}</em><h3>{name}</h3><b>{value}</b><p>{label}</p></div>
+          <div className="reel-spark">{[38, 56, 44, 72, 61, 88, 70, 96].map((height, n) => <i key={n} style={{ height: `${height}%` }} />)}</div>
+        </article>)}
+      </div></div>)}
+    </section>
   )
 }
 

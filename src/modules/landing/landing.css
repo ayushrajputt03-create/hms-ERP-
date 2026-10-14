@@ -15,6 +15,46 @@ section[id]{scroll-margin-top:90px}
 .landing h1,.landing h2,.landing h3{margin:0;font-family:'Figtree','Noto Sans',system-ui,sans-serif}
 .landing img{max-width:100%}
 
+/* Reference-led editorial hero: oversized type + a real product object. */
+.ref-hero{min-height:980px;justify-content:flex-start;padding:108px max(3vw,24px) 44px;background:linear-gradient(145deg,#fff 0%,#f6fbfc 55%,#eaf6f8 100%)}
+.hero-kicker{position:relative;z-index:4;width:min(1320px,100%);margin:0 auto;display:flex;justify-content:space-between;gap:24px;padding:8px 2px;color:#55717d;font:700 10px 'DM Mono',monospace;letter-spacing:.1em;text-transform:uppercase}
+.hero-kicker span{display:flex;align-items:center;gap:10px}
+.hero-kicker .pulse-dot{width:7px;height:7px}
+.hero-title-wrap{position:relative;z-index:1;width:100%;margin:10px auto 0;overflow:hidden;text-align:center}
+.hero-title-wrap h1{font-size:clamp(5rem,15.8vw,15rem);line-height:.78;letter-spacing:-.075em;font-weight:900;white-space:nowrap;color:transparent;background:linear-gradient(180deg,#183e4f 0%,#5d8997 88%);-webkit-background-clip:text;background-clip:text}
+.hero-title-wrap p{margin:22px 0 0;color:#1d4b5b;font-size:clamp(1rem,1.55vw,1.5rem);font-weight:700;letter-spacing:.12em;text-transform:uppercase}
+.ref-hero-visual{position:absolute;z-index:3;width:min(650px,50vw);left:50%;top:340px;transform:translateX(-50%)}
+.ref-hero-visual:before{inset:-22px -30px 32px 38px;background:rgba(225,242,245,.9);border-color:#cee3e7}
+.ref-hero-visual .product-ui{box-shadow:0 42px 100px -42px rgba(12,71,92,.5)}
+.hero-bottom{position:relative;z-index:5;width:min(1320px,100%);margin:auto auto 18px;display:flex;align-items:flex-end;justify-content:space-between;gap:36px}
+.hero-bottom-copy{max-width:345px}
+.hero-bottom-copy small{display:block;margin-bottom:10px;color:#0b728b;font:700 10px 'DM Mono',monospace;letter-spacing:.11em;text-transform:uppercase}
+.hero-bottom-copy p{margin:0;color:#355965;font-size:14px;line-height:1.65;font-weight:600}
+.hero-bottom .hero-buttons{margin:0;justify-content:flex-end}
+
+/* Product workflow reel inspired by portfolio image marquees, without stock art. */
+.workflow-reel{overflow:hidden;padding:92px 0 80px;background:#092f3f;color:#fff;border:0}
+.reel-heading{width:min(1180px,calc(100% - 40px));margin:0 auto 36px;display:flex;align-items:end;justify-content:space-between;gap:32px}
+.reel-heading span{font-family:'Figtree',sans-serif;font-size:clamp(3.8rem,9.5vw,9rem);line-height:.8;letter-spacing:-.065em;text-transform:uppercase;font-weight:900;background:linear-gradient(180deg,#fff,#8ec1cb);-webkit-background-clip:text;background-clip:text;color:transparent}
+.reel-heading p{max-width:365px;margin:0;color:#a8cad2;font-size:14px;line-height:1.7;font-weight:600}
+.reel-row{width:100%;overflow:hidden;margin-top:14px}
+.reel-track{display:flex;width:max-content;gap:14px;will-change:transform;animation:reel-left 38s linear infinite}
+.reel-row.row-2 .reel-track{animation-name:reel-right;animation-duration:44s}
+.reel-row:hover .reel-track{animation-play-state:paused}
+.reel-card{width:340px;height:210px;flex:none;border-radius:24px;padding:18px;background:linear-gradient(150deg,#fff,#edf8fa);color:#133c4b;border:1px solid rgba(255,255,255,.65);box-shadow:0 22px 55px -30px rgba(0,0,0,.5);display:grid;grid-template-rows:auto 1fr 46px;overflow:hidden;position:relative}
+.reel-card:nth-child(3n+2){background:linear-gradient(145deg,#e5f7fa,#fff)}
+.reel-card:nth-child(3n){background:linear-gradient(145deg,#f3fbfc,#d9f0f4)}
+.reel-card-top{display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;border-bottom:1px solid #d5e7ea}
+.reel-card-top span{display:flex;align-items:center;gap:7px;font-size:10px;font-weight:800}.reel-card-top svg{color:#087fa5}
+.reel-card-top small{font:700 8px 'DM Mono',monospace;letter-spacing:.12em;color:#668690}
+.reel-card-body{display:grid;grid-template-columns:auto 1fr auto;grid-template-rows:auto 1fr;gap:2px 12px;align-items:end;padding-top:12px}
+.reel-card-body em{grid-row:1/3;align-self:start;font:700 10px 'DM Mono',monospace;color:#6f919b;font-style:normal}
+.reel-card-body h3{align-self:start;font-size:15px;text-transform:uppercase;letter-spacing:.02em}.reel-card-body b{font-size:30px;line-height:1;letter-spacing:-.04em}.reel-card-body p{grid-column:2/4;margin:0;color:#66828b;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+.reel-spark{height:40px;display:flex;align-items:end;gap:7px;padding:4px 2px 0;margin-top:4px;border-top:1px dashed #d5e7ea}
+.reel-spark i{display:block;flex:1;border-radius:4px 4px 1px 1px;background:linear-gradient(180deg,#43b8cc,#087fa5);opacity:.85}
+@keyframes reel-left{to{transform:translateX(calc(-100% / 3))}}
+@keyframes reel-right{from{transform:translateX(calc(-100% / 3))}to{transform:translateX(0)}}
+
 /* ---------- shared ---------- */
 .progress{position:fixed;z-index:60;top:0;left:0;right:0;height:3px;background:var(--grad);transform-origin:0 50%}
 .mag-b{display:inline-flex}
@@ -400,6 +440,41 @@ h2{font-size:clamp(28px,3.8vw,46px);line-height:1.12;letter-spacing:-.025em;font
   .footer{grid-template-columns:1fr 1fr;padding-top:54px}
 }
 
+/* Responsive rules for the editorial landing treatment. Kept last so the
+   legacy hero-grid breakpoints cannot override this composition. */
+@media(max-width:1080px){
+  .ref-hero{min-height:900px;padding:108px 24px 40px}
+  .ref-hero-visual{top:315px;width:min(620px,66vw)}
+  .hero-bottom{margin-bottom:12px}
+}
+@media(max-width:760px){
+  .ref-hero{min-height:820px;padding:102px 18px 34px}
+  .hero-kicker{font-size:8px;letter-spacing:.06em}
+  .hero-kicker span:last-child{display:none}
+  .hero-title-wrap{margin-top:20px}
+  .hero-title-wrap h1{font-size:clamp(4.1rem,21vw,7.5rem);line-height:.82}
+  .hero-title-wrap p{font-size:.72rem;margin-top:14px}
+  .ref-hero-visual{top:300px;width:min(520px,88vw)}
+  .ref-hero-visual:before{inset:-14px -10px 22px 18px}
+  .ref-hero-visual .product-ui{min-height:250px}
+  .hero-bottom{margin-top:auto;display:grid;gap:20px;align-items:end}
+  .hero-bottom-copy{max-width:100%}.hero-bottom-copy p{font-size:12.5px}
+  .hero-bottom .hero-buttons{justify-content:flex-start;gap:10px}.hero-bottom .btn.big{padding:12px 15px;font-size:12px}
+  .reel-heading{display:grid;gap:22px}.reel-heading span{font-size:clamp(3.7rem,18vw,6rem)}
+  .workflow-reel{padding:72px 0 58px}.reel-card{width:280px;height:185px;border-radius:20px;padding:15px}.reel-card-body b{font-size:25px}
+}
+@media(max-width:440px){
+  .ref-hero{min-height:790px}
+  .hero-title-wrap h1{font-size:20vw}
+  .ref-hero-visual{top:270px;width:92vw}
+  .ref-hero-visual .product-ui{min-height:230px}
+  .ref-hero-visual .ui-stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.ref-hero-visual .metric{padding:8px 6px}.ref-hero-visual .metric span{font-size:8px}
+  .handoff-note{display:none}
+}
+@media(prefers-reduced-motion:reduce){
+  .reel-track{animation-play-state:paused}
+}
+
 /* ---------- nav active + polish ---------- */
 .nav nav a.active{color:var(--navy)}
 .nav nav a .nav-ink{position:absolute;left:0;right:0;bottom:0;height:2px;border-radius:2px;background:var(--grad)}
@@ -551,3 +626,14 @@ h2{font-size:clamp(28px,3.8vw,46px);line-height:1.12;letter-spacing:-.025em;font
 .command-number{background:#f2f8f8}
 .command-bars i{background:#1689a3}
 .command-bars i:nth-child(3n){background:#91bdbd}
+
+/* Final reference-hero placement (Motion owns transform; CSS owns centering). */
+.ref-hero-visual{position:absolute;transform:none;translate:-50% 0}
+@media(max-width:760px){
+  .ref-hero{min-height:auto;padding:102px 18px 48px}
+  .ref-hero-visual{position:relative;left:auto;top:auto;translate:none;width:100%;margin:30px auto 0}
+  .hero-bottom{display:grid;margin:26px 0 0}
+}
+@media(max-width:440px){
+  .ref-hero-visual .handoff-note{display:none}
+}
