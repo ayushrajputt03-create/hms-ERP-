@@ -25,7 +25,9 @@ section[id]{scroll-margin-top:90px}
 .hero-title-wrap p{margin:22px 0 0;color:#1d4b5b;font-size:clamp(1rem,1.55vw,1.5rem);font-weight:700;letter-spacing:.12em;text-transform:uppercase}
 .ref-hero-visual{position:absolute;z-index:3;width:min(650px,50vw);left:50%;top:340px;transform:translateX(-50%)}
 .ref-hero-visual:before{inset:-22px -30px 32px 38px;background:rgba(225,242,245,.9);border-color:#cee3e7}
-.ref-hero-visual .product-ui{box-shadow:0 42px 100px -42px rgba(12,71,92,.5)}
+.real-dashboard-shot{position:relative;margin:0;aspect-ratio:16/10;overflow:hidden;border:1px solid #cbdde2;border-radius:16px;background:#f6f9fb;box-shadow:0 42px 100px -42px rgba(12,71,92,.5)}
+.real-dashboard-shot:before{content:'';position:absolute;z-index:2;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 1px rgba(255,255,255,.6);pointer-events:none}
+.real-dashboard-shot img{display:block;width:100%;height:100%;object-fit:cover;object-position:left top}
 .hero-bottom{position:relative;z-index:5;width:min(1320px,100%);margin:auto auto 18px;display:flex;align-items:flex-end;justify-content:space-between;gap:36px}
 .hero-bottom-copy{max-width:345px}
 .hero-bottom-copy small{display:block;margin-bottom:10px;color:#0b728b;font:700 10px 'DM Mono',monospace;letter-spacing:.11em;text-transform:uppercase}
@@ -456,7 +458,7 @@ h2{font-size:clamp(28px,3.8vw,46px);line-height:1.12;letter-spacing:-.025em;font
   .hero-title-wrap p{font-size:.72rem;margin-top:14px}
   .ref-hero-visual{top:300px;width:min(520px,88vw)}
   .ref-hero-visual:before{inset:-14px -10px 22px 18px}
-  .ref-hero-visual .product-ui{min-height:250px}
+  .real-dashboard-shot{border-radius:13px}
   .hero-bottom{margin-top:auto;display:grid;gap:20px;align-items:end}
   .hero-bottom-copy{max-width:100%}.hero-bottom-copy p{font-size:12.5px}
   .hero-bottom .hero-buttons{justify-content:flex-start;gap:10px}.hero-bottom .btn.big{padding:12px 15px;font-size:12px}
@@ -467,8 +469,7 @@ h2{font-size:clamp(28px,3.8vw,46px);line-height:1.12;letter-spacing:-.025em;font
   .ref-hero{min-height:790px}
   .hero-title-wrap h1{font-size:20vw}
   .ref-hero-visual{top:270px;width:92vw}
-  .ref-hero-visual .product-ui{min-height:230px}
-  .ref-hero-visual .ui-stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.ref-hero-visual .metric{padding:8px 6px}.ref-hero-visual .metric span{font-size:8px}
+  .real-dashboard-shot{aspect-ratio:16/10;border-radius:11px}
   .handoff-note{display:none}
 }
 @media(prefers-reduced-motion:reduce){

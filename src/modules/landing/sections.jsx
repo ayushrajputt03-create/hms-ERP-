@@ -81,9 +81,20 @@ export function Hero({ loading, onDemo }) {
         <motion.p animate={loading ? { opacity: 0 } : { opacity: 1 }} transition={{ delay: .5, duration: .7 }}>One clear view.</motion.p>
       </div>
       <motion.div className="hero-visual ref-hero-visual" style={{ y: yMock }} animate={loading ? { opacity: 0, y: 45, scale: .94 } : { opacity: 1, y: 0, scale: 1 }} transition={{ delay: .38, duration: 1, ease: EASE }}>
-          <Tilt><ProductUI active={0} /></Tilt>
+          <Tilt>
+            <figure className="real-dashboard-shot">
+              <img
+                src="/images/hms-dashboard.png"
+                alt="HMS ERP dashboard showing patient registrations, OPD, bed occupancy, billing, laboratory and pharmacy summaries"
+                width="1440"
+                height="900"
+                loading="eager"
+                fetchPriority="high"
+              />
+            </figure>
+          </Tilt>
           <motion.div className="handoff-note" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1, duration: .55, ease: EASE }}><span><Check size={15} /></span><div><b>Record available</b><small>Front desk → consultation</small></div></motion.div>
-          <div className="hero-preview-label"><span />Product preview · Sample data</div>
+          <div className="hero-preview-label"><span />Actual HMS dashboard · Demo data</div>
       </motion.div>
       <div className="hero-bottom">
         <motion.div className="hero-bottom-copy" animate={loading ? { opacity: 0, y: 22 } : { opacity: 1, y: 0 }} transition={{ delay: .58, duration: .75, ease: EASE }}>
