@@ -4,8 +4,8 @@ import {
   motion, AnimatePresence, MotionConfig, useScroll, useSpring,
   useMotionValueEvent, animate,
 } from 'motion/react'
-import { Activity, ArrowRight, ArrowUp, HeartPulse } from 'lucide-react'
-import { EASE, SPRING_LIGHT, navLinks, footerCols } from './landing-data'
+import { Activity, ArrowRight, ArrowUp } from 'lucide-react'
+import { EASE, navLinks, footerCols } from './landing-data'
 import { Magnetic } from './primitives'
 import DemoModal from './DemoModal'
 import { Hero, Marquee, Stats, Trust, Problem, Showcase, CommandCenter, Journey, Operations, Security, Roles, Compare, Pricing, Testimonials, FAQ, CTA } from './sections'
@@ -20,17 +20,29 @@ function ScrollProgress() {
 function Preloader() {
   const [p, setP] = useState(0)
   useEffect(() => {
-    const c = animate(0, 100, { duration: 0.72, ease: EASE, onUpdate: (v) => setP(Math.round(v)) })
+    const c = animate(0, 100, { duration: 1.35, ease: EASE, onUpdate: (v) => setP(Math.round(v)) })
     return () => c.stop()
   }, [])
   return (
-    <div className="preload" aria-hidden="true">
-      <motion.div className="preload-logo" initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ ...SPRING_LIGHT }}>
-        <span className="tile"><motion.span animate={{ rotate: [0, -12, 0] }} transition={{ duration: 2.4, repeat: Infinity, ease: EASE }}><Activity size={22} /></motion.span></span>
-        <b>HMS ERP</b>
-      </motion.div>
-      <div className="loadbar"><motion.i style={{ width: `${p}%` }} /></div>
-      <motion.small initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>{p}%</motion.small>
+    <div className="preload" role="status" aria-live="polite" aria-label={`Loading HMS ERP, ${p} percent`}>
+      <div className="preload-top" aria-hidden="true">
+        <div className="preload-mark"><span><Activity size={18} /></span><b>HMS ERP</b></div>
+        <div className="preload-signal"><i /><i /><i /><i /><i /></div>
+      </div>
+      <div className="preload-marquee" aria-hidden="true">
+        <span>Patients</span><i />
+        <span>OPD</span><i />
+        <span>Admissions</span><i />
+        <span>Diagnostics</span><i />
+        <span>Billing</span>
+      </div>
+      <div className="preload-pill" aria-hidden="true">
+        <span className="preload-pulse"><Activity size={18} /></span>
+        <b>Loading HMS</b>
+        <em>{p}%</em>
+        <div className="preload-progress"><motion.i style={{ scaleX: p / 100 }} /></div>
+      </div>
+      <div className="preload-foot" aria-hidden="true"><span>Connected care operations</span><span>One clear view</span></div>
     </div>
   )
 }
@@ -97,7 +109,7 @@ export default function LandingPage() {
   const [demo, setDemo] = useState(false)
   useEffect(() => {
     if (!loading) return undefined
-    const t = setTimeout(() => { setLoading(false); sessionStorage.setItem('hms-landing-seen', '1') }, 800)
+    const t = setTimeout(() => { setLoading(false); sessionStorage.setItem('hms-landing-seen', '1') }, 1500)
     return () => clearTimeout(t)
   }, [loading])
   useEffect(() => {
