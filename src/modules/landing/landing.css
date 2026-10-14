@@ -638,9 +638,14 @@ h2{font-size:clamp(28px,3.8vw,46px);line-height:1.12;letter-spacing:-.025em;font
 
 /* Final reference-hero placement (Motion owns transform; CSS owns centering). */
 .ref-hero-visual{position:absolute;transform:none;translate:-50% 0}
+@media(max-width:1080px){
+  .ref-hero{min-height:auto;padding-bottom:48px}
+  .ref-hero-visual{position:relative;left:auto;top:auto;translate:none;width:min(620px,72vw);margin:38px auto 0}
+  .hero-bottom{width:100%;margin:34px 0 0}
+}
 @media(max-width:760px){
   .ref-hero{min-height:auto;padding:102px 18px 48px}
-  .ref-hero-visual{position:relative;left:auto;top:auto;translate:none;width:100%;margin:30px auto 0}
+  .ref-hero-visual{width:100%;margin-top:30px}
   .hero-bottom{display:grid;margin:26px 0 0}
 }
 @media(max-width:440px){
