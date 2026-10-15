@@ -59,7 +59,7 @@ export function AuthProvider({ children }) {
             // leftover flag so this cannot recur on the next load.
             clearFlag(PENDING_SETUP_KEY)
             setStaffProfile(staffDoc)
-          } else if (readFlag(PENDING_SETUP_KEY)) {
+          } else if (readFlag(PENDING_SETUP_KEY) === firebaseUser.uid) {
             setStaffProfile({
               uid: firebaseUser.uid,
               facilityId: null,
@@ -120,7 +120,18 @@ export function AuthProvider({ children }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
-async function findStaffProfile(firebaseUser) {
+export async function findStaffProfile(firebaseUser) {
+  // The legacy setup wizard uses the auth UID as its facility ID. Resolve
+  // that deterministic record first so a refresh does not depend on a JSONB
+  // collection query (which may be unavailable under stricter RLS policies).
+  const directFacility = await getDocument(`facilityIndex/${firebaseUser.uid}`)
+  if (directFacility?.ownerUid === firebaseUser.uid) {
+    const directStaff = await getDocument(`facilities/${firebaseUser.uid}/staff/${firebaseUser.uid}`)
+    if (directStaff) {
+      return { ...directStaff, uid: firebaseUser.uid, facilityId: firebaseUser.uid }
+    }
+  }
+
   const indexDocs = await queryDocuments('facilityIndex', {
     orderBy: 'ownerUid',
     equalTo: firebaseUser.uid,
