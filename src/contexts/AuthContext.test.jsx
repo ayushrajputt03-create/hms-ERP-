@@ -24,7 +24,6 @@ describe('findStaffProfile', () => {
 
   it('restores the deterministic legacy facility after a fresh sign-in', async () => {
     getDocument.mockImplementation(async path => {
-      if (path === 'facilityIndex/user-1') return { ownerUid: 'user-1', facilityName: 'City Hospital' }
       if (path === 'facilities/user-1/staff/user-1') return { role: 'facility_admin', name: 'Ayush' }
       return null
     })
@@ -32,6 +31,21 @@ describe('findStaffProfile', () => {
     await expect(findStaffProfile({ uid: 'user-1', email: 'ayush@example.com' })).resolves.toMatchObject({
       uid: 'user-1',
       facilityId: 'user-1',
+      role: 'facility_admin',
+    })
+    expect(queryDocuments).not.toHaveBeenCalled()
+    expect(getDocument).toHaveBeenCalledTimes(1)
+  })
+
+  it('restores an owner when the staff write was interrupted but the facility index exists', async () => {
+    getDocument.mockImplementation(async path => {
+      if (path === 'facilityIndex/user-2') return { ownerUid: 'user-2', facilityName: 'City Hospital' }
+      return null
+    })
+
+    await expect(findStaffProfile({ uid: 'user-2', email: 'owner@example.com' })).resolves.toMatchObject({
+      uid: 'user-2',
+      facilityId: 'user-2',
       role: 'facility_admin',
     })
     expect(queryDocuments).not.toHaveBeenCalled()

@@ -122,13 +122,22 @@ export function AuthProvider({ children }) {
 
 export async function findStaffProfile(firebaseUser) {
   // The legacy setup wizard uses the auth UID as its facility ID. Resolve
-  // that deterministic record first so a refresh does not depend on a JSONB
-  // collection query (which may be unavailable under stricter RLS policies).
+  // that deterministic staff record first so a refresh does not depend on
+  // facilityIndex or a JSONB collection query. The staff path is the actual
+  // membership record and is sufficient to restore the user's facility.
+  const directStaff = await getDocument(`facilities/${firebaseUser.uid}/staff/${firebaseUser.uid}`)
+  if (directStaff) {
+    return { ...directStaff, uid: firebaseUser.uid, facilityId: firebaseUser.uid }
+  }
+
   const directFacility = await getDocument(`facilityIndex/${firebaseUser.uid}`)
   if (directFacility?.ownerUid === firebaseUser.uid) {
-    const directStaff = await getDocument(`facilities/${firebaseUser.uid}/staff/${firebaseUser.uid}`)
-    if (directStaff) {
-      return { ...directStaff, uid: firebaseUser.uid, facilityId: firebaseUser.uid }
+    return {
+      uid: firebaseUser.uid,
+      facilityId: firebaseUser.uid,
+      role: 'facility_admin',
+      name: firebaseUser.displayName || firebaseUser.email,
+      email: firebaseUser.email,
     }
   }
 

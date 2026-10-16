@@ -71,6 +71,17 @@ function RootRoute() {
   return <FacilityRoutes />
 }
 
+function SetupRoute() {
+  const { staffProfile, loading } = useAuth()
+
+  if (loading) return <LoadingScreen />
+  if (staffProfile?.facilityId && !staffProfile.pending) {
+    return <Navigate to="/" replace />
+  }
+
+  return <FacilitySetupWizard />
+}
+
 export default function AppRoutes() {
   return (
     <Suspense fallback={<Loader />}>
@@ -89,7 +100,7 @@ export default function AppRoutes() {
 
         <Route path="/setup" element={
           <ProtectedRoute>
-            <FacilitySetupWizard />
+            <SetupRoute />
           </ProtectedRoute>
         } />
 
