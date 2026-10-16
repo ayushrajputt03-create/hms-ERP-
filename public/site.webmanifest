@@ -1,0 +1,17 @@
+{
+  "name": "HMS ERP",
+  "short_name": "HMS ERP",
+  "description": "Hospital management system for connected clinical and operational workflows.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#052659",
+  "icons": [
+    {
+      "src": "/favicon.svg?v=3",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
