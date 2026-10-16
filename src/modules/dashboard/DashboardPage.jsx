@@ -16,6 +16,17 @@ import {
 } from 'lucide-react'
 import TokenLookup from '@modules/opd/TokenLookup'
 
+const DEPARTMENT_LOAD = [
+  { name: 'Cardiology', opd: 42, beds: '85%', accent: 'rose' },
+  { name: 'Orthopedics', opd: 38, beds: '92%', accent: 'blue' },
+  { name: 'Oncology', opd: 19, beds: '70%', accent: 'purple' },
+  { name: 'Neurology', opd: 26, beds: '80%', accent: 'amber' },
+  { name: 'Pediatrics', opd: 31, beds: '65%', accent: 'emerald' },
+  { name: 'ICU / Critical', opd: 12, beds: '98%', accent: 'critical' },
+  { name: 'Radiology (CT/MRI)', opd: 54, beds: '—', accent: 'indigo' },
+  { name: 'General Surgery', opd: 22, beds: '78%', accent: 'teal' },
+]
+
 export default function DashboardPage() {
   const { staffProfile } = useAuth()
   const { facilityId, isModuleEnabled } = useFacility()
@@ -189,35 +200,27 @@ export default function DashboardPage() {
 
       {/* Department Breakdown Heatmap for Admins and HODs */}
       {(role === ROLES.SUPER_ADMIN || role === ROLES.FACILITY_ADMIN || role === ROLES.DEPT_ADMIN) && (
-        <div className="dashboard-section bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-          <div className="flex justify-between items-center">
-            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <TrendingUp size={18} className="text-primary-600" /> Multi-Specialty Department Load Heatmap
+        <section className="dashboard-section department-heatmap" aria-labelledby="department-load-title">
+          <div className="department-heatmap-header">
+            <h3 id="department-load-title">
+              <span className="department-heatmap-icon"><TrendingUp size={17} /></span>
+              Multi-Specialty Department Load Heatmap
             </h3>
-            <span className="text-xs text-slate-500 font-mono">16 Active Specialties</span>
+            <span className="department-heatmap-count">{DEPARTMENT_LOAD.length} Active Specialties</span>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[
-              { name: 'Cardiology', opd: 42, beds: '85%', color: 'border-l-4 border-rose-500 bg-rose-50/40 dark:bg-rose-950/20' },
-              { name: 'Orthopedics', opd: 38, beds: '92%', color: 'border-l-4 border-blue-500 bg-blue-50/40 dark:bg-blue-950/20' },
-              { name: 'Oncology', opd: 19, beds: '70%', color: 'border-l-4 border-purple-500 bg-purple-50/40 dark:bg-purple-950/20' },
-              { name: 'Neurology', opd: 26, beds: '80%', color: 'border-l-4 border-amber-500 bg-amber-50/40 dark:bg-amber-950/20' },
-              { name: 'Pediatrics', opd: 31, beds: '65%', color: 'border-l-4 border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/20' },
-              { name: 'ICU / Critical', opd: 12, beds: '98%', color: 'border-l-4 border-red-600 bg-red-50/40 dark:bg-red-950/30 font-bold' },
-              { name: 'Radiology (CT/MRI)', opd: 54, beds: '—', color: 'border-l-4 border-indigo-500 bg-indigo-50/40 dark:bg-indigo-950/20' },
-              { name: 'General Surgery', opd: 22, beds: '78%', color: 'border-l-4 border-teal-500 bg-teal-50/40 dark:bg-teal-950/20' },
-            ].map((dept, i) => (
-              <div key={i} className={`p-3 rounded-xl border border-slate-200 dark:border-slate-800 ${dept.color}`}>
-                <div className="text-xs font-bold text-slate-800 dark:text-slate-200">{dept.name}</div>
-                <div className="flex justify-between items-center mt-2 text-[11px] text-slate-600 dark:text-slate-400">
-                  <span>OPD: <strong>{dept.opd}</strong></span>
-                  <span>Occ: <strong>{dept.beds}</strong></span>
+          <div className="department-heatmap-grid">
+            {DEPARTMENT_LOAD.map((dept) => (
+              <article key={dept.name} className={`department-load-card department-load-card--${dept.accent}`}>
+                <div className="department-load-name">{dept.name}</div>
+                <div className="department-load-metrics">
+                  <span><small>OPD</small><strong>{dept.opd}</strong></span>
+                  <span><small>Occupancy</small><strong>{dept.beds}</strong></span>
                 </div>
-              </div>
+              </article>
             ))}
           </div>
-        </div>
+        </section>
       )}
 
       {/* Role-Adaptive Quick Actions */}
