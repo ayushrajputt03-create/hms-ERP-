@@ -39,4 +39,21 @@ describe('OPD patient parchi', () => {
     expect(output).toContain('Sample Patient')
     expect(output).toContain("DOCTOR'S NOTES / DIAGNOSIS / ADVICE")
   })
+
+  it('can print immediately after basic patient registration without an OPD visit', async () => {
+    const pdf = await buildOpdSlipPDF({
+      facility: { facilityName: 'City Hospital' },
+      patient: {
+        name: 'New Patient',
+        uhid: 'HMS-2026-00002',
+        gender: 'female',
+        phone: '9876543210',
+      },
+      visit: { visitDate: Date.UTC(2026, 9, 22, 10, 30) },
+    })
+
+    expect(pdf.getNumberOfPages()).toBe(1)
+    expect(pdf.output()).toContain('New Patient')
+    expect(pdf.output()).toContain("DOCTOR'S NOTES / DIAGNOSIS / ADVICE")
+  })
 })

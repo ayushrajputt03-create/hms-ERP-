@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '@hooks/useAuth'
 import { useFacility } from '@hooks/useFacility'
 import { getDocument, setDocument, addDocument, incrementCounter } from '@lib/db'
+import { buildOpdSlipPDF, printPDF } from '@lib/pdf'
 import { INDIAN_STATES } from '@lib/constants'
 import {
   RELATION_TYPES, PATIENT_TYPES, PATIENT_TYPE_LABELS, formatAge,
@@ -10,7 +11,7 @@ import {
 import TagInput from './TagInput'
 import {
   User, Phone, Mail, MapPin, Calendar, Heart, AlertTriangle,
-  ChevronLeft, Save, Loader, Briefcase, ShieldAlert,
+  ChevronLeft, Save, Loader, Briefcase, ShieldAlert, CheckCircle, Printer,
 } from 'lucide-react'
 
 export default function PatientForm() {
@@ -23,6 +24,7 @@ export default function PatientForm() {
   const [loading, setLoading] = useState(isEdit)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [registeredPatient, setRegisteredPatient] = useState(null)
 
   const [form, setForm] = useState({
     name: '', dob: '', gender: 'male', phone: '', email: '',
@@ -122,7 +124,7 @@ export default function PatientForm() {
         patientData.uhid = `${prefix}-${year}-${String(counter).padStart(5, '0')}`
 
         const newId = await addDocument(`facilities/${facilityId}/patients`, patientData, auditOpts)
-        navigate(`/patients/${newId}`)
+        setRegisteredPatient({ ...patientData, id: newId })
       }
     } catch (err) {
       console.error('Patient save error:', err)
@@ -132,7 +134,48 @@ export default function PatientForm() {
     }
   }
 
+  const handlePrintParchi = async () => {
+    if (!registeredPatient) return
+    const pdf = await buildOpdSlipPDF({
+      facility: facilityConfig || {},
+      patient: registeredPatient,
+      visit: { visitDate: Date.now() },
+    })
+    printPDF(pdf)
+  }
+
   if (loading) return <div className="empty-state">Loading...</div>
+
+  if (registeredPatient) {
+    return (
+      <div>
+        <div className="page-header">
+          <h2><CheckCircle size={22} /> Patient Registered</h2>
+          <p>UHID generated successfully. You can print the patient parchi now.</p>
+        </div>
+        <div className="patient-form-card registration-success" style={{ maxWidth: 640 }}>
+          <div className="registration-token registration-token--uhid">
+            <span className="registration-token-label">Patient UHID</span>
+            <span className="registration-token-value registration-uhid-value">{registeredPatient.uhid}</span>
+          </div>
+          <div className="registration-summary">
+            <div><span>Patient</span><strong>{registeredPatient.name}</strong></div>
+            <div><span>Mobile</span><strong>{registeredPatient.phone}</strong></div>
+            <div><span>Age</span><strong>{formatAge(registeredPatient.dob) || '—'}</strong></div>
+            <div><span>Gender</span><strong>{registeredPatient.gender || '—'}</strong></div>
+          </div>
+          <div className="form-actions">
+            <button className="btn btn-outline" onClick={() => navigate(`/patients/${registeredPatient.id}`)}>
+              View Patient Profile
+            </button>
+            <button className="btn btn-primary" onClick={handlePrintParchi}>
+              <Printer size={15} /> Print Patient Parchi
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div>
