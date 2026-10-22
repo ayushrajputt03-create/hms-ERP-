@@ -240,13 +240,221 @@ async function uhidQrDataUrl(uhid) {
   }
 }
 
+// Premium OPD parchi based on the familiar hospital paper-record layout:
+// identity and visit details stay compact at the top, while most of the page
+// remains available for handwritten clinical notes. Facility branding and
+// live patient data are used throughout; no third-party hospital identity is
+// embedded in the template.
+export async function buildOpdSlipPDF({ facility, patient, visit }) {
+  const pdf = createPDF()
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const pageHeight = pdf.internal.pageSize.getHeight()
+  const margin = 12
+  const contentWidth = pageWidth - margin * 2
+  const NAVY = [5, 38, 89]
+  const SKY = [14, 165, 233]
+  const INK = [18, 32, 51]
+  const MUTED = [71, 85, 105]
+  const LINE = [148, 163, 184]
+  const uhid = patient?.uhid || visit?.patientUhid || '—'
+  const token = visit?.tokenNumber ?? '—'
+  const visitDate = new Date(visit?.visitDate || visit?.createdAt || Date.now())
+  const ageSex = [
+    formatAge(patient?.dob),
+    patient?.gender && patient.gender[0].toUpperCase() + patient.gender.slice(1),
+  ].filter(Boolean).join(' / ') || '—'
+  const vitals = visit?.vitals || {}
+
+  const text = (value) => value == null || value === '' ? '—' : String(value)
+  const labelValue = (label, value, x, y, labelWidth, maxWidth, options = {}) => {
+    pdf.setFontSize(options.fontSize || 8)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setTextColor(...MUTED)
+    pdf.text(label, x, y)
+    pdf.setTextColor(...(options.danger ? [185, 28, 28] : INK))
+    const lines = pdf.splitTextToSize(`:  ${text(value)}`, Math.max(maxWidth - labelWidth, 12))
+    pdf.text(lines, x + labelWidth, y)
+    pdf.setTextColor(...INK)
+    return lines.length
+  }
+
+  // Header: simple HMS mark and facility identity on the left; visit context
+  // on the right, matching what reception and clinicians scan first.
+  let y = 12
+  pdf.setFillColor(...NAVY)
+  pdf.roundedRect(margin, y, 17, 17, 3, 3, 'F')
+  pdf.setDrawColor(255, 255, 255)
+  pdf.setLineWidth(1.4)
+  pdf.line(margin + 4, y + 8.5, margin + 13, y + 8.5)
+  pdf.line(margin + 8.5, y + 4, margin + 8.5, y + 13)
+
+  const brandX = margin + 22
+  const brandW = 103
+  pdf.setTextColor(...NAVY)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(17)
+  const facilityName = text(facility?.facilityName || 'HMS Hospital')
+  pdf.text(pdf.splitTextToSize(facilityName, brandW), brandX, y + 6)
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(7.2)
+  pdf.setTextColor(...MUTED)
+  const facilityLine = [
+    facility?.address,
+    facility?.city,
+    facility?.phone && `Ph: ${facility.phone}`,
+  ].filter(Boolean).join('  •  ')
+  if (facilityLine) pdf.text(pdf.splitTextToSize(facilityLine, brandW), brandX, y + 12)
+
+  const rightX = pageWidth - margin
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(10)
+  pdf.setTextColor(...INK)
+  pdf.text('OUT PATIENT RECORD', rightX, y + 3.5, { align: 'right' })
+  pdf.setFontSize(8)
+  pdf.setTextColor(...NAVY)
+  pdf.text(text(visit?.departmentName || 'GENERAL OPD').toUpperCase(), rightX, y + 8.5, { align: 'right' })
+  pdf.setFontSize(7.5)
+  pdf.setTextColor(...MUTED)
+  pdf.text(`TOKEN ${token}`, rightX, y + 13.5, { align: 'right' })
+
+  y += 21
+  pdf.setDrawColor(...NAVY)
+  pdf.setLineWidth(0.7)
+  pdf.line(margin, y, pageWidth - margin, y)
+
+  // Patient and episode details.
+  const detailsTop = y + 4
+  const colGap = 8
+  const colWidth = (contentWidth - colGap) / 2
+  const leftX = margin + 2
+  const detailRightX = margin + colWidth + colGap
+  const rowGap = 6
+
+  labelValue('Patient Name', patient?.name || visit?.patientName, leftX, detailsTop, 29, colWidth - 2, { fontSize: 8.7 })
+  labelValue('Age / Sex', ageSex, detailRightX, detailsTop, 22, colWidth - 2, { fontSize: 8.7 })
+  labelValue('UHID', uhid, leftX, detailsTop + rowGap, 29, colWidth - 2)
+  labelValue('Date', visitDate.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }), detailRightX, detailsTop + rowGap, 22, colWidth - 2)
+  labelValue('Mobile No.', maskPhone(patient?.phone), leftX, detailsTop + rowGap * 2, 29, colWidth - 2)
+  labelValue('Visit No.', visit?.deptRegNo || visit?.id, detailRightX, detailsTop + rowGap * 2, 22, colWidth - 2)
+  labelValue('E-mail ID', patient?.email, detailRightX, detailsTop + rowGap * 3, 22, colWidth - 2)
+
+  // UHID remains machine-readable without competing with the paper form.
+  drawBarcode(pdf, uhid === '—' ? '' : uhid, {
+    x: leftX,
+    y: detailsTop + rowGap * 3 - 3.3,
+    width: 38,
+    height: 5,
+  })
+
+  y = detailsTop + rowGap * 4 + 1
+  pdf.setDrawColor(...LINE)
+  pdf.setLineWidth(0.25)
+  pdf.line(margin, y, pageWidth - margin, y)
+
+  y += 6
+  labelValue('Consultant Name', visit?.doctorName ? `Dr. ${visit.doctorName}` : '—', leftX, y, 32, contentWidth - 4, { fontSize: 8.5 })
+  y += 6
+  labelValue('Department', visit?.departmentName, leftX, y, 32, colWidth - 2)
+  labelValue('Room / Floor', [visit?.roomNumber, visit?.floor].filter(Boolean).join(' / '), detailRightX, y, 27, colWidth - 2)
+
+  y += 5
+  pdf.setDrawColor(...NAVY)
+  pdf.setLineWidth(0.45)
+  pdf.line(margin, y, pageWidth - margin, y)
+
+  // Vitals strip: deliberately writable when vitals have not yet been taken.
+  const stripTop = y
+  const stripH = 16
+  const stripCols = [
+    ['Height', vitals.height && `${vitals.height} cm`],
+    ['BP', vitals.bp],
+    ['Allergies', patient?.allergies?.join(', ') || 'NKDA'],
+    ['Diet', visit?.diet],
+    ['Weight', vitals.weight && `${vitals.weight} kg`],
+  ]
+  const stripW = contentWidth / stripCols.length
+  stripCols.forEach(([label, value], index) => {
+    const x = margin + index * stripW
+    if (index > 0) {
+      pdf.setDrawColor(...LINE)
+      pdf.setLineWidth(0.2)
+      pdf.line(x, stripTop + 2, x, stripTop + stripH - 2)
+    }
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(7)
+    pdf.setTextColor(...MUTED)
+    pdf.text(label.toUpperCase(), x + 2.5, stripTop + 5)
+    pdf.setFontSize(8.2)
+    pdf.setTextColor(...(label === 'Allergies' && patient?.allergies?.length ? [185, 28, 28] : INK))
+    pdf.text(pdf.splitTextToSize(text(value), stripW - 5), x + 2.5, stripTop + 10.5)
+  })
+  pdf.setDrawColor(...NAVY)
+  pdf.setLineWidth(0.45)
+  pdf.line(margin, stripTop + stripH, pageWidth - margin, stripTop + stripH)
+
+  y = stripTop + stripH + 6
+  labelValue('Known Health Conditions', patient?.conditions?.join(', '), leftX, y, 43, contentWidth - 4)
+  y += 5
+
+  // Large handwriting area, the defining feature of the supplied reference.
+  const notesTop = y
+  const notesBottom = pageHeight - 30
+  pdf.setDrawColor(...NAVY)
+  pdf.setLineWidth(0.45)
+  pdf.rect(margin, notesTop, contentWidth, notesBottom - notesTop)
+  pdf.setFillColor(242, 247, 252)
+  pdf.rect(margin, notesTop, contentWidth, 9, 'F')
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(9)
+  pdf.setTextColor(...NAVY)
+  pdf.text("DOCTOR'S NOTES / DIAGNOSIS / ADVICE", margin + 3, notesTop + 6)
+  pdf.setFontSize(13)
+  pdf.text('Rx', pageWidth - margin - 4, notesTop + 6, { align: 'right' })
+
+  if (visit?.chiefComplaint) {
+    pdf.setFontSize(7.5)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setTextColor(...MUTED)
+    pdf.text('CHIEF COMPLAINT', margin + 3, notesTop + 15)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setTextColor(...INK)
+    pdf.text(pdf.splitTextToSize(visit.chiefComplaint, contentWidth - 39), margin + 35, notesTop + 15)
+  }
+
+  const signY = notesBottom - 8
+  pdf.setDrawColor(...LINE)
+  pdf.setLineWidth(0.25)
+  pdf.line(pageWidth - margin - 57, signY, pageWidth - margin - 3, signY)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(7)
+  pdf.setTextColor(...MUTED)
+  pdf.text("Doctor's Signature & Stamp", pageWidth - margin - 30, signY + 4, { align: 'center' })
+  pdf.text('FOLLOW-UP: ____________________', margin + 3, signY + 4)
+
+  // Footer keeps routing and generation details available without consuming
+  // the clinician's writing space.
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(6.8)
+  pdf.setTextColor(...MUTED)
+  const route = [visit?.departmentName, visit?.roomNumber && `Room ${visit.roomNumber}`, visit?.floor]
+    .filter(Boolean).join('  •  ')
+  pdf.text(route || 'Please report to the OPD reception.', margin, pageHeight - 15)
+  pdf.text('Please carry this parchi on every visit.', pageWidth / 2, pageHeight - 15, { align: 'center' })
+  pdf.text('Page 1 of 1', pageWidth - margin, pageHeight - 15, { align: 'right' })
+  pdf.setDrawColor(...SKY)
+  pdf.setLineWidth(0.7)
+  pdf.line(margin, pageHeight - 11, pageWidth - margin, pageHeight - 11)
+
+  return pdf
+}
+
 // OPD parchi, laid out like a real government-hospital out-patient record:
 // stamp / branding / scannable UHID barcode across the header, a bordered
 // two-column demographics block for the counter clerk, and the whole lower
 // half left ruled-but-blank for the doctor to write the Rx by hand.
 //
 // Async because the ABHA QR has to be rasterised before it can be placed.
-export async function buildOpdSlipPDF({ facility, patient, visit }) {
+async function buildLegacyOpdSlipPDF({ facility, patient, visit }) {
   const pdf = createPDF()
   const pageWidth = pdf.internal.pageSize.getWidth()
   const pageHeight = pdf.internal.pageSize.getHeight()
