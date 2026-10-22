@@ -5,7 +5,7 @@ import { useFacility } from '@hooks/useFacility'
 import { usePermission } from '@hooks/usePermission'
 import { getDocument, subscribeToCollection, updateDocument } from '@lib/db'
 import { formatDate, calculateAge, getInitials } from '@lib/utils'
-import { buildMlcReportPDF, printPDF } from '@lib/pdf'
+import { buildMlcReportPDF, buildOpdSlipPDF, printPDF } from '@lib/pdf'
 import Modal from '@components/Modal'
 import PatientTimeline from './PatientTimeline'
 import PatientQR from './PatientQR'
@@ -33,6 +33,7 @@ export default function PatientProfile() {
   const [loading, setLoading] = useState(true)
   const [archiveModal, setArchiveModal] = useState(false)
   const [archiving, setArchiving] = useState(false)
+  const [printingParchi, setPrintingParchi] = useState(false)
 
   const [visits, setVisits] = useState([])
   const [admissions, setAdmissions] = useState([])
@@ -88,6 +89,22 @@ export default function PatientProfile() {
     }
   }
 
+  const handlePrintParchi = async () => {
+    setPrintingParchi(true)
+    try {
+      const pdf = await buildOpdSlipPDF({
+        facility: facilityConfig || {},
+        patient,
+        visit: visits[0] || { visitDate: Date.now() },
+      })
+      printPDF(pdf)
+    } catch (err) {
+      console.error('Patient parchi print error:', err)
+    } finally {
+      setPrintingParchi(false)
+    }
+  }
+
   if (loading) return <div className="empty-state">Loading patient...</div>
   if (!patient) return <div className="empty-state">Patient not found.</div>
 
@@ -100,6 +117,9 @@ export default function PatientProfile() {
           <ChevronLeft size={16} /> Back to Patients
         </button>
         <div className="profile-header-actions">
+          <button className="btn btn-primary" onClick={handlePrintParchi} disabled={printingParchi}>
+            <Printer size={14} /> {printingParchi ? 'Preparing…' : 'Print Parchi'}
+          </button>
           {/* Casualty prints this the moment a police case walks in — the form
               carries the patient's identity, the rest is written by the duty
               officer, so it is available for every patient, not just flagged ones. */}
